@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>TransferME</title>
+</head>
+<body>
+  <h1>Transfer Playlist</h1>
+
+  <form action="/transfer/spotify-to-soundcloud" method="post">
+    <input type="text" name="spotify_url" placeholder="Spotify Playlist URL">
+    <button type="submit">Spotify ➜ SoundCloud</button>
+  </form>
+
+  <form action="/transfer/soundcloud-to-spotify" method="post">
+    <input type="text" name="soundcloud_url" placeholder="SoundCloud Playlist URL">
+    <button type="submit">SoundCloud ➜ Spotify</button>
+  </form>
+</body>
+</html>
