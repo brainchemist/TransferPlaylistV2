@@ -1,43 +1,33 @@
+import os
+import re
+import json
+import time
 import requests
 import webbrowser
-import re
-import time
-import os
-import json
 
-# ----------------- CONFIG -----------------
-CLIENT_ID = 'bmeOWPX1sHDLo6DATVC3EoQuEuF2u7Hf'
-CLIENT_SECRET = 'pFYb7pOJAQMyjEPwS6m0tmXIXeMPzKOt'
-REDIRECT_URI = 'http://localhost:8080/callback'
-TEXT_FILE = os.getenv("TEXT_FILE")
-TOKEN_FILE = os.getenv("TOKEN_FILE", "soundcloud_token.json")
-NEW_PLAYLIST_NAME = os.path.splitext(os.path.basename(TEXT_FILE))[0]
+from utils import sanitize_filename, soundcloud_callback
 
-desc_file = os.getenv("DESCRIPTION_FILE")
-if desc_file and os.path.exists(desc_file):
-    with open(desc_file, "r", encoding="utf-8") as f:
-        PLAYLIST_DESCRIPTION = f.read().strip()
-else:
-    PLAYLIST_DESCRIPTION = "Imported from Spotify 🎵"
+CLIENT_ID = os.getenv("SCCLIENT_ID")
+CLIENT_SECRET = os.getenv("SCCLIENT_SECRET")
+REDIRECT_URI = os.getenv("SCREDIRECT_URI")
+TOKEN_FILE = os.getenv("SCTOKEN_FILE", "soundcloud_token.json")
 
-COVER_IMAGE_FILE = os.getenv("COVER_IMAGE_FILE", "")
-
-
-# ----------------- AUTH + TOKEN REUSE -----------------
-if os.path.exists(TOKEN_FILE):
-    with open(TOKEN_FILE, "r") as f:
-        token_data = json.load(f)
-        access_token = token_data["access_token"]
-        print("🔓 Reusing saved access token.")
-else:
+def authenticate_and_save_token(token_file="soundcloud_token.json"):
     auth_url = (
-        f"https://soundcloud.com/connect?"
-        f"client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&scope=non-expiring"
+        f"https://soundcloud.com/connect"
+        f"?client_id={CLIENT_ID}"
+        f"&redirect_uri={REDIRECT_URI}"
+        f"&response_type=code"
+        f"&scope=non-expiring"
     )
     print("🔗 Open this URL to authorize access:\n" + auth_url)
     webbrowser.open(auth_url)
 
-    code = input("📋 Paste the `code` from the redirected URL: ").strip()
+    code = soundcloud_callback()
+
+    if not code:
+        print("❌ Failed to get authorization code.")
+        return None
 
     token_response = requests.post("https://api.soundcloud.com/oauth2/token", data={
         'client_id': CLIENT_ID,
@@ -48,49 +38,37 @@ else:
     })
 
     if token_response.status_code != 200:
-        print("❌ Token exchange failed:", token_response.text)
-        exit()
+        print(f"❌ Token exchange failed ({token_response.status_code}):", token_response.text)
+        return None
 
     token_data = token_response.json()
-    access_token = token_data["access_token"]
-
-    with open(TOKEN_FILE, "w") as f:
+    with open(token_file, "w") as f:
         json.dump(token_data, f)
-    print("💾 Access token saved for future use.")
 
-# OAuth headers
-headers = {
-    'Authorization': f'OAuth {access_token}',
-    'User-Agent': 'Mozilla/5.0'
-}
+    print("✅ Token saved.")
+    return token_data["access_token"]
 
-# ----------------- SEARCH FUNCTION -----------------
-def search_track(title_line):
+
+def get_saved_token(token_file="soundcloud_token.json"):
+    if os.path.exists(token_file):
+        with open(token_file, "r") as f:
+            token_data = json.load(f)
+            return token_data.get("access_token")
+    return None
+
+
+def search_track(title_line, headers):
     parts = re.split(r"\s*[-–]\s*", title_line)
-    if len(parts) < 2:
-        query = title_line.strip()
-    else:
-        title = parts[0].strip()
-        artist = parts[1].strip()
-        query = f"{title} {artist}"
+    query = title_line.strip() if len(parts) < 2 else f"{parts[0].strip()} {parts[1].strip()}"
 
     try:
         r = requests.get("https://api.soundcloud.com/tracks", params={
             'q': query,
             'limit': 5
         }, headers=headers)
-    except Exception as e:
-        print(f"⚠️  Connection error for '{query}': {e}")
-        return None
-
-    if r.status_code != 200:
-        print(f"⚠️  API error {r.status_code} for '{query}': {r.text[:80]}")
-        return None
-
-    try:
+        r.raise_for_status()
         results = r.json()
-    except Exception as e:
-        print(f"⚠️  JSON parse error for '{query}': {e}")
+    except Exception:
         return None
 
     if not isinstance(results, list) or not results:
@@ -100,65 +78,9 @@ def search_track(title_line):
         track_title = track['title'].lower()
         if all(word.lower() in track_title for word in query.lower().split()):
             return track['id']
-
     return results[0]['id']
 
-# ----------------- LOAD TRACKS -----------------
-try:
-    with open(TEXT_FILE, "r", encoding="utf-8") as f:
-        track_names = [line.strip() for line in f if line.strip()]
-except FileNotFoundError:
-    print(f"❌ File not found: {TEXT_FILE}")
-    exit()
-
-print(f"\n🎶 Found {len(track_names)} tracks to search.\n")
-
-track_ids = []
-
-# Clear skipped log
-with open("skipped_tracks.txt", "w", encoding="utf-8") as logf:
-    logf.write("")
-
-for i, title in enumerate(track_names):
-    percent = round((i + 1) / len(track_names) * 100)
-    tid = search_track(title)
-
-    if tid:
-        print(f"[{percent}%] ✅ Found: {title}")
-        track_ids.append(tid)
-    else:
-        print(f"[{percent}%] ❌ Not found: {title}")
-        with open("skipped_tracks.txt", "a", encoding="utf-8") as logf:
-            logf.write(title + "\n")
-
-    time.sleep(0.6)
-
-# ----------------- CREATE PLAYLIST -----------------
-if not track_ids:
-    print("⚠️ No valid tracks found. Playlist creation skipped.")
-    exit()
-
-playlist_payload = {
-    'playlist': {
-        'title': NEW_PLAYLIST_NAME,
-        'sharing': 'public',
-        'tracks': [{'id': tid} for tid in track_ids]
-    }
-}
-
-create_r = requests.post("https://api.soundcloud.com/playlists", headers=headers, json=playlist_payload)
-
-if create_r.status_code != 201:
-    print(f"❌ Failed to create playlist: {create_r.status_code} - {create_r.text}")
-    exit()
-
-pl = create_r.json()
-playlist_id = pl['id']
-print(f"\n✅ Playlist created: {pl['title']}")
-print(f"🔗 Playlist link: {pl['permalink_url']}")
-
-# ----------------- SET DESCRIPTION AND IMAGE -----------------
-def upload_cover_image_and_description(pid, image_path, description):
+def upload_cover_and_description(headers, pid, image_path, description):
     if not os.path.exists(image_path):
         print("⚠️  Cover image not found, skipping upload.")
         return
@@ -180,4 +102,88 @@ def upload_cover_image_and_description(pid, image_path, description):
     else:
         print(f"❌ Failed to update image/description: {r.status_code} - {r.text}")
 
-upload_cover_image_and_description(playlist_id, COVER_IMAGE_FILE, PLAYLIST_DESCRIPTION)
+def transfer_to_soundcloud(text_file, token):
+    headers = {
+        'Authorization': f'OAuth {token}',
+        'User-Agent': 'Mozilla/5.0'
+    }
+    if not os.path.exists(text_file):
+        return f"❌ File not found: {text_file}"
+
+    playlist_name = os.path.splitext(os.path.basename(text_file))[0]
+    description = "Imported from Spotify 🎵"
+
+    description_file = f"{playlist_name}.desc.txt"
+
+    if description_file and os.path.exists(description_file):
+        with open(description_file, "r", encoding="utf-8") as f:
+            description = f.read().strip()
+
+    access_token = get_saved_token()
+    if not access_token:
+        return "❌ Authentication failed."
+
+    headers = {
+        'Authorization': f'OAuth {access_token}',
+        'User-Agent': 'Mozilla/5.0'
+    }
+
+    # Read tracks
+    with open(text_file, "r", encoding="utf-8") as f:
+        track_lines = [line.strip() for line in f if line.strip()]
+
+    print(f"\n🎶 Found {len(track_lines)} tracks to search.\n")
+    track_ids = []
+
+    skipped_log = "skipped_tracks.txt"
+    open(skipped_log, "w").close()
+
+    for i, title in enumerate(track_lines):
+        percent = round((i + 1) / len(track_lines) * 100)
+        tid = search_track(title, headers)
+
+        if tid:
+            print(f"[{percent}%] ✅ Found: {title}")
+            track_ids.append(tid)
+        else:
+            print(f"[{percent}%] ❌ Not found: {title}")
+            with open(skipped_log, "a", encoding="utf-8") as logf:
+                logf.write(title + "\n")
+
+        time.sleep(0.6)
+
+    if not track_ids:
+        return "⚠️ No valid tracks found. Playlist creation skipped."
+
+    payload = {
+        'playlist': {
+            'title': playlist_name,
+            'sharing': 'public',
+            'tracks': [{'id': tid} for tid in track_ids]
+        }
+    }
+
+    r = requests.post("https://api.soundcloud.com/playlists", headers=headers, json=payload)
+    if r.status_code != 201:
+        return f"❌ Failed to create playlist: {r.status_code} - {r.text}"
+
+    pl = r.json()
+    playlist_url = pl['permalink_url']
+    print(f"\n✅ Playlist created: {pl['title']}")
+    print(f"🔗 Playlist link: {playlist_url}")
+
+    safe_title = sanitize_filename(pl['title'])
+
+
+
+    cover_image_file = f"{safe_title}.jpg"
+
+    if cover_image_file:
+        upload_cover_and_description(headers, pl['id'], cover_image_file, description)
+
+    for file in [f"{safe_title}.txt", f"{safe_title}.jpg", f"{safe_title}.desc.txt", "skipped_tracks.txt"]:
+        if os.path.exists(file):
+            os.remove(file)
+            print(f" Deleted {file}")
+
+    return f"✅ Playlist '{playlist_name}' transferred to SoundCloud.\n🔗 {playlist_url}"

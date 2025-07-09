@@ -29,9 +29,10 @@ env["COVER_IMAGE_FILE"] = COVER_FILE if os.path.exists(COVER_FILE) else ""
 env["TOKEN_FILE"] = "soundcloud_token.json"
 
 subprocess.run(["python", "soundcloud.py"], env=env)
+subprocess.run(["cat -n", "skipped_tracks.txt"])
 
 print("\n Cleaning up exported files...")
-for file in [TEXT_FILE, DESC_FILE, COVER_FILE]:
+for file in [TEXT_FILE, DESC_FILE, COVER_FILE, "skipped_tracks.txt"]:
     if os.path.exists(file):
         os.remove(file)
         print(f" Deleted {file}")

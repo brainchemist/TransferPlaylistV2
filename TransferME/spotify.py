@@ -5,8 +5,7 @@ import base64
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
-
-def transfer_to_spotify(text_file: str, desc_file: str = "", image_file: str = "") -> str:
+def transfer_to_spotify(text_file: str, desc_file: str = "") -> str:
     """Transfer tracks from a text file to a new Spotify playlist."""
 
     if not text_file or not os.path.exists(text_file):
@@ -16,9 +15,9 @@ def transfer_to_spotify(text_file: str, desc_file: str = "", image_file: str = "
     base_name = os.path.splitext(os.path.basename(text_file))[0]
 
     # Spotify credentials
-    CLIENT_ID = '213b54fe34d54c15ac0307909e4e8d27'
-    CLIENT_SECRET = 'eee9bdd3e6c2416196d2465e1c3a89f0'
-    REDIRECT_URI = 'http://127.0.0.1:8000/callback'
+    CLIENT_ID = os.getenv("SPCLIENT_ID")
+    CLIENT_SECRET = os.getenv("SPCLIENT_SECRET")
+    REDIRECT_URI = os.getenv("SPREDIRECT_URI")
 
     scope = 'playlist-modify-public playlist-modify-private ugc-image-upload'
 
@@ -36,6 +35,7 @@ def transfer_to_spotify(text_file: str, desc_file: str = "", image_file: str = "
 
     # Create playlist
     playlist_desc = ""
+    desc_file = f"{base_name}.desc.txt"
     if desc_file and os.path.exists(desc_file):
         with open(desc_file, "r", encoding="utf-8") as f:
             playlist_desc = f.read().strip()
@@ -44,6 +44,7 @@ def transfer_to_spotify(text_file: str, desc_file: str = "", image_file: str = "
     playlist_id = new_playlist["id"]
     print(f"🎵 Created Spotify playlist: {base_name}")
 
+    image_file = f"{base_name}.jpg"
     # Upload image
     if image_file and os.path.exists(image_file):
         try:
@@ -85,6 +86,12 @@ def transfer_to_spotify(text_file: str, desc_file: str = "", image_file: str = "
         with open(skipped_file, "w", encoding="utf-8") as f:
             f.write("\n".join(not_found))
         print(f"⚠️ {len(not_found)} not found. Saved to {skipped_file}")
+
+
+    for file in [f"{base_name}.txt", f"{base_name}.jpg", f"{base_name}.desc.txt" ,"skipped_tracks.txt"]:
+        if os.path.exists(file):
+            os.remove(file)
+            print(f" Deleted {file}")
 
     return f"✅ Transfer complete! {len(found)} tracks added to '{base_name}' playlist."
 

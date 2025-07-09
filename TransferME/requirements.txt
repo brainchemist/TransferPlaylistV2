@@ -6,3 +6,4 @@ aiofiles
 requests
 spotipy
 Pillow
+python-dotenv
