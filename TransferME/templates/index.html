@@ -1,19 +1,34 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>TransferME</title>
+  <meta charset="UTF-8" />
+  <title>Transfer Playlist</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
 </head>
 <body>
-  <h1>Transfer Playlist</h1>
 
-  <form action="/transfer/spotify-to-soundcloud" method="post">
-    <input type="text" name="spotify_url" placeholder="Spotify Playlist URL">
-    <button type="submit">Spotify ➜ SoundCloud</button>
-  </form>
+  <!-- Move heading to top of page -->
+  <header>
+    <h1 class="page-title">Transfer Playlist</h1>
+  </header>
 
-  <form action="/transfer/soundcloud-to-spotify" method="post">
-    <input type="text" name="soundcloud_url" placeholder="SoundCloud Playlist URL">
-    <button type="submit">SoundCloud ➜ Spotify</button>
-  </form>
+  <!-- Centered container -->
+  <div class="container">
+    <h2>Spotify ↔ SoundCloud</h2>
+
+    <form action="/transfer/spotify-to-soundcloud" method="post">
+      <input type="url" name="spotify_url" placeholder="Enter Spotify playlist URL" required />
+      <button type="submit">Transfer to SoundCloud</button>
+    </form>
+
+    <div style="margin: 1.5rem 0; text-align: center; color: #9ca3af;">or</div>
+
+    <form action="/transfer/soundcloud-to-spotify" method="post">
+      <input type="url" name="soundcloud_url" placeholder="Enter SoundCloud playlist URL" required />
+      <button type="submit">Transfer to Spotify</button>
+    </form>
+  </div>
+
 </body>
 </html>

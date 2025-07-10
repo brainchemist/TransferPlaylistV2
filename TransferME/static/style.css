@@ -1,0 +1,100 @@
+/* Reset some base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: #1f2937;
+}
+
+/* Top Title */
+.page-title {
+    text-align: center;
+    font-size: 2.75rem;
+    font-weight: 700;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    color: #111827;
+}
+
+/* Container */
+.container {
+    background: white;
+    padding: 2.5rem;
+    margin-top: 1rem;
+    border-radius: 1rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+    width: 90%;
+    max-width: 500px;
+    text-align: center;
+}
+
+/* Form Headline */
+.container h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    color: #374151;
+}
+
+/* Inputs */
+input[type="url"] {
+    width: 100%;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    border: 1px solid #cbd5e0;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+input[type="url"]:focus {
+    border-color: #6366f1;
+    outline: none;
+}
+
+/* Buttons */
+button {
+    background-color: #6366f1;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    width: 100%;
+}
+
+button:hover {
+    background-color: #4f46e5;
+}
+
+/* Separator */
+.container div {
+    font-size: 0.9rem;
+    color: #6b7280;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 600px) {
+    .container {
+        padding: 1.5rem;
+    }
+
+    .page-title {
+        font-size: 2rem;
+    }
+
+    .container h2 {
+        font-size: 1.25rem;
+    }
+}
