@@ -3,59 +3,20 @@ import re
 import json
 import time
 import requests
-import webbrowser
 
-from utils import sanitize_filename, soundcloud_callback
+from utils import sanitize_filename
 
 CLIENT_ID = os.getenv("SCCLIENT_ID")
 CLIENT_SECRET = os.getenv("SCCLIENT_SECRET")
 REDIRECT_URI = os.getenv("SCREDIRECT_URI")
 TOKEN_FILE = os.getenv("SCTOKEN_FILE", "soundcloud_token.json")
 
-def authenticate_and_save_token(token_file="soundcloud_token.json"):
-    auth_url = (
-        f"https://soundcloud.com/connect"
-        f"?client_id={CLIENT_ID}"
-        f"&redirect_uri={REDIRECT_URI}"
-        f"&response_type=code"
-        f"&scope=non-expiring"
-    )
-    print("🔗 Open this URL to authorize access:\n" + auth_url)
-    webbrowser.open(auth_url)
-
-    code = soundcloud_callback()
-
-    if not code:
-        print("❌ Failed to get authorization code.")
-        return None
-
-    token_response = requests.post("https://api.soundcloud.com/oauth2/token", data={
-        'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET,
-        'redirect_uri': REDIRECT_URI,
-        'grant_type': 'authorization_code',
-        'code': code
-    })
-
-    if token_response.status_code != 200:
-        print(f"❌ Token exchange failed ({token_response.status_code}):", token_response.text)
-        return None
-
-    token_data = token_response.json()
-    with open(token_file, "w") as f:
-        json.dump(token_data, f)
-
-    print("✅ Token saved.")
-    return token_data["access_token"]
-
-
-def get_saved_token(token_file="soundcloud_token.json"):
+def get_saved_token(token_file=TOKEN_FILE):
     if os.path.exists(token_file):
         with open(token_file, "r") as f:
             token_data = json.load(f)
             return token_data.get("access_token")
     return None
-
 
 def search_track(title_line, headers):
     parts = re.split(r"\s*[-–]\s*", title_line)
@@ -114,19 +75,9 @@ def transfer_to_soundcloud(text_file, token):
     description = "Imported from Spotify 🎵"
 
     description_file = f"{playlist_name}.desc.txt"
-
     if description_file and os.path.exists(description_file):
         with open(description_file, "r", encoding="utf-8") as f:
             description = f.read().strip()
-
-    access_token = get_saved_token()
-    if not access_token:
-        return "❌ Authentication failed."
-
-    headers = {
-        'Authorization': f'OAuth {access_token}',
-        'User-Agent': 'Mozilla/5.0'
-    }
 
     # Read tracks
     with open(text_file, "r", encoding="utf-8") as f:
@@ -173,9 +124,6 @@ def transfer_to_soundcloud(text_file, token):
     print(f"🔗 Playlist link: {playlist_url}")
 
     safe_title = sanitize_filename(pl['title'])
-
-
-
     cover_image_file = f"{safe_title}.jpg"
 
     if cover_image_file:

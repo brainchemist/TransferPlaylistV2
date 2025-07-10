@@ -21,7 +21,7 @@ def resolve_playlist(url, token):
         return None
     return r.json()
 
-def export_soundcloud_playlist(playlist_url: str, access_token) -> tuple[str, str] | tuple[None, None]:
+def export_soundcloud_playlist(playlist_url: str, access_token: str) -> tuple[str, str] | tuple[None, None]:
 
     playlist_data = resolve_playlist(playlist_url, access_token)
     if not playlist_data or playlist_data.get("kind") != "playlist":
