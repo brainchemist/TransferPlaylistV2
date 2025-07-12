@@ -7,3 +7,4 @@ requests
 spotipy
 Pillow
 python-dotenv
+gunicorn
