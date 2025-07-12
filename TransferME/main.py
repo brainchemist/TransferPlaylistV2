@@ -95,7 +95,7 @@ async def spotify_to_soundcloud(request: Request, spotify_url: str = Form(...)):
     if not sc_token:
         return RedirectResponse("/auth/soundcloud", status_code=302)
 
-    result = export_spotify_playlist(spotify_url)
+    result = export_spotify_playlist(spotify_url, token=spotify_token)
     print("Export result:", result)
 
     if result is None:

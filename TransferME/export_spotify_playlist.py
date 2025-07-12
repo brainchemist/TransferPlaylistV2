@@ -31,13 +31,12 @@ def reencode_jpeg(image_path):
     except Exception as e:
         print(f"❌ Failed to re-encode image: {e}")
 
-def export_spotify_playlist(playlist_url: str) -> tuple[str, str]:
-    sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        redirect_uri=REDIRECT_URI,
-        scope=SCOPE
-    ))
+def export_spotify_playlist(playlist_url: str, token: str) -> tuple[str, str] | tuple[None, None]:
+    if not token:
+        print("❌ No Spotify token provided.")
+        return None, None
+
+    sp = spotipy.Spotify(auth=token)
 
     if "playlist/" in playlist_url:
         playlist_id = playlist_url.split("playlist/")[1].split("?")[0]
@@ -94,7 +93,8 @@ def export_spotify_playlist(playlist_url: str) -> tuple[str, str]:
             print(f"❌ Failed to download cover image: {e}")
 
     print(f"✅ Exported '{playlist_name}' ({len(track_titles)} tracks)")
-    return txt_file, safe_name  # text file and base name (without extension)
+    return txt_file, safe_name
+
 
 def get_saved_spotify_token():
     if os.path.exists(SPOTIFY_TOKEN_FILE):
