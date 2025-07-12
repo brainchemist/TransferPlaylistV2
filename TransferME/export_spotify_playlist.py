@@ -8,8 +8,6 @@ import re
 from PIL import Image
 from spotipy import Spotify
 
-from main import SPOTIFY_TOKEN_FILE
-
 # ----------------- CONFIG -----------------
 CLIENT_ID = os.getenv("SPCLIENT_ID")
 CLIENT_SECRET = os.getenv("SPCLIENT_SECRET")
