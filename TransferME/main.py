@@ -95,7 +95,16 @@ async def spotify_to_soundcloud(request: Request, spotify_url: str = Form(...)):
     if not sc_token:
         return RedirectResponse("/auth/soundcloud", status_code=302)
 
-    txt_file, name = export_spotify_playlist(spotify_url, token=spotify_token)
+    result = export_spotify_playlist(spotify_url, token=spotify_token)
+    print("Export result:", result)
+
+    if result is None:
+        return templates.TemplateResponse("result.html", {
+            "request": request,
+            "message": "❌ Could not export playlist. Please check the Spotify link or token."
+        })
+
+    txt_file, name = result
     result = transfer_to_soundcloud(txt_file, token=sc_token)
 
     return templates.TemplateResponse("result.html", {"request": request, "message": result})
