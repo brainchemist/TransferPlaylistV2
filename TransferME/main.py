@@ -29,7 +29,7 @@ def auth_soundcloud():
     )
     return RedirectResponse(auth_url)
 
-@app.get("/soundcloud/callback")
+@app.get("/callback")
 async def soundcloud_callback(request: Request):
     code = request.query_params.get("code")
     redirect_to = request.query_params.get("redirect_to", "/")
@@ -94,10 +94,3 @@ async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...
     return templates.TemplateResponse("result.html", {"request": request, "message": result})
 
 
-@app.get("/spotify/callback")
-async def spotify_callback(request: Request):
-    code = request.query_params.get("code")
-    return templates.TemplateResponse("result.html", {
-        "request": request,
-        "message": f"✅ Spotify code received: {code}"
-    })
