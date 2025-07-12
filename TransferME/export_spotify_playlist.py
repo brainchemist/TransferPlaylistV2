@@ -1,15 +1,25 @@
+import json
+
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import requests
 import os
 import re
 from PIL import Image
+from spotipy import Spotify
+
+from main import SPOTIFY_TOKEN_FILE
 
 # ----------------- CONFIG -----------------
 CLIENT_ID = os.getenv("SPCLIENT_ID")
 CLIENT_SECRET = os.getenv("SPCLIENT_SECRET")
 REDIRECT_URI = os.getenv("SPREDIRECT_URI")
 SCOPE = 'playlist-read-private playlist-read-collaborative'
+SPOTIFY_CLIENT_ID = os.getenv("SPCLIENT_ID")
+SPOTIFY_REDIRECT_URI = os.getenv("SPREDIRECT_URI")
+SPOTIFY_SCOPE = "playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private"
+SPOTIFY_CLIENT_SECRET = os.getenv("SPCLIENT_SECRET")
+SPOTIFY_TOKEN_FILE = "spotify_token.json"
 
 def sanitize_filename(name):
     return re.sub(r'[\\/*?:"<>|]', "_", name)
@@ -87,3 +97,12 @@ def export_spotify_playlist(playlist_url: str) -> tuple[str, str]:
 
     print(f"✅ Exported '{playlist_name}' ({len(track_titles)} tracks)")
     return txt_file, safe_name  # text file and base name (without extension)
+
+def get_saved_spotify_token():
+    if os.path.exists(SPOTIFY_TOKEN_FILE):
+        with open(SPOTIFY_TOKEN_FILE) as f:
+            return json.load(f)["access_token"]
+    return None
+
+def export_spotify_playlist(url, token):
+    sp = Spotify(auth=token)
