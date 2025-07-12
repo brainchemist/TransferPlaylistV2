@@ -92,3 +92,12 @@ async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...
     result = transfer_to_spotify(txt_file)
 
     return templates.TemplateResponse("result.html", {"request": request, "message": result})
+
+
+@app.get("/spotify/callback")
+async def spotify_callback(request: Request):
+    code = request.query_params.get("code")
+    return templates.TemplateResponse("result.html", {
+        "request": request,
+        "message": f"✅ Spotify code received: {code}"
+    })
