@@ -107,8 +107,13 @@ async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...
     from spotify import transfer_to_spotify
     from soundcloud import get_saved_token
 
+    sc_token = get_saved_token()
+    spotify_token = get_saved_spotify_token()
+
     token = get_saved_token()
-    if not token:
+    if not spotify_token:
+        return RedirectResponse("/auth/spotify", status_code=302)
+    if not sc_token:
         return RedirectResponse("/auth/soundcloud", status_code=302)
 
     txt_file, name = export_soundcloud_playlist(soundcloud_url, token)

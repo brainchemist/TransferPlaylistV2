@@ -101,6 +101,3 @@ def get_saved_spotify_token():
         with open(SPOTIFY_TOKEN_FILE) as f:
             return json.load(f)["access_token"]
     return None
-
-def export_spotify_playlist(url, token):
-    sp = Spotify(auth=token)
