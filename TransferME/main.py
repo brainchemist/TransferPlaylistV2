@@ -30,15 +30,16 @@ templates = Jinja2Templates(directory="templates")
 
 @app.get("/auth/spotify")
 def auth_spotify():
-    session_id = str(uuid4())
-    redirect_uri = f"{SPOTIFY_REDIRECT_URI}?session_id={session_id}"
+    session_id = str(uuid4())  # Create a new session ID
+    redirect_uri = f"{SPOTIFY_REDIRECT_URI}"  # Base redirect URI without session ID
     params = urlencode({
         "client_id": SPOTIFY_CLIENT_ID,
         "response_type": "code",
-        "redirect_uri": redirect_uri,
+        "redirect_uri": redirect_uri,  # No session_id here
         "scope": SPOTIFY_SCOPE
     })
     return RedirectResponse(f"https://accounts.spotify.com/authorize?{params}")
+
 
 @app.get("/auth/soundcloud")
 def auth_soundcloud():
@@ -149,15 +150,28 @@ async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...
 @app.get("/callback_spotify")
 async def spotify_callback(request: Request):
     code = request.query_params.get("code")
-    session_id = request.query_params.get("session_id")
+    session_id = request.query_params.get("session_id")  # Extract session_id from the query
+
+    # Ensure you handle missing or invalid session_id gracefully
+    if not session_id:
+        return templates.TemplateResponse("result.html", {
+            "request": request,
+            "message": "❌ Missing session ID"
+        })
 
     token_response = requests.post("https://accounts.spotify.com/api/token", data={
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": f"{SPOTIFY_REDIRECT_URI}?session_id={session_id}",
+        "redirect_uri": f"{SPOTIFY_REDIRECT_URI}",  # Clean redirect URI
         "client_id": SPOTIFY_CLIENT_ID,
         "client_secret": SPOTIFY_CLIENT_SECRET
     })
+
+    if token_response.status_code != 200:
+        return templates.TemplateResponse("result.html", {
+            "request": request,
+            "message": f"❌ Token exchange failed: {token_response.text}"
+        })
 
     token_data = token_response.json()
     os.makedirs("tokens", exist_ok=True)
