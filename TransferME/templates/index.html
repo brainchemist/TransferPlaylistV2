@@ -14,14 +14,16 @@
   <div class="container">
     <h2>Spotify ↔ SoundCloud</h2>
 
-    <form action="/transfer/spotify-to-soundcloud?session_id={{ session_id }}" method="post">
+    <form action="/transfer/spotify-to-soundcloud" method="post">
+      <input type="hidden" name="session_id" value="{{ session_id }}">
       <input type="url" name="spotify_url" placeholder="Enter Spotify playlist URL" required />
       <button type="submit">Transfer to SoundCloud</button>
     </form>
 
     <div style="margin: 1.5rem 0; text-align: center; color: #9ca3af;">or</div>
 
-    <form action="/transfer/soundcloud-to-spotify?session_id={{ session_id }}" method="post">
+    <form action="/transfer/soundcloud-to-spotify" method="post">
+      <input type="hidden" name="session_id" value="{{ session_id }}">
       <input type="url" name="soundcloud_url" placeholder="Enter SoundCloud playlist URL" required />
       <button type="submit">Transfer to Spotify</button>
     </form>
