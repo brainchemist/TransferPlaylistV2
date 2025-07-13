@@ -2,51 +2,47 @@ import os
 import re
 import time
 import base64
+import json
 import spotipy
-from spotipy.oauth2 import SpotifyOAuth
+
+def get_saved_spotify_token():
+    token_file = "spotify_token.json"
+    if os.path.exists(token_file):
+        with open(token_file) as f:
+            return json.load(f)["access_token"]
+    return None
 
 def transfer_to_spotify(text_file: str, desc_file: str = "") -> str:
-    """Transfer tracks from a text file to a new Spotify playlist."""
-
     if not text_file or not os.path.exists(text_file):
         return "❌ Playlist text file not found."
 
-    # Playlist name from file base
     base_name = os.path.splitext(os.path.basename(text_file))[0]
+    token = get_saved_spotify_token()
+    if not token:
+        return "❌ Spotify token not found. Please authenticate first."
 
-    # Spotify credentials
-    CLIENT_ID = os.getenv("SPCLIENT_ID")
-    CLIENT_SECRET = os.getenv("SPCLIENT_SECRET")
-    REDIRECT_URI = os.getenv("SPREDIRECT_URI")
+    sp = spotipy.Spotify(auth=token)
 
-    scope = 'playlist-modify-public playlist-modify-private ugc-image-upload'
+    try:
+        user_id = sp.current_user()["id"]
+    except Exception as e:
+        return f"❌ Failed to fetch current user: {e}"
 
-    sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        redirect_uri=REDIRECT_URI,
-        scope=scope
-    ))
-    user_id = sp.current_user()["id"]
-
-    # Read track lines
     with open(text_file, "r", encoding="utf-8") as f:
         track_lines = [line.strip() for line in f if line.strip()]
 
-    # Create playlist
     playlist_desc = ""
     desc_file = f"{base_name}.desc.txt"
-    if desc_file and os.path.exists(desc_file):
+    if os.path.exists(desc_file):
         with open(desc_file, "r", encoding="utf-8") as f:
             playlist_desc = f.read().strip()
 
-    new_playlist = sp.user_playlist_create(user_id, base_name, public=True, description=playlist_desc)
+    new_playlist = sp.user_playlist_create(user=user_id, name=base_name, public=True, description=playlist_desc)
     playlist_id = new_playlist["id"]
     print(f"🎵 Created Spotify playlist: {base_name}")
 
     image_file = f"{base_name}.jpg"
-    # Upload image
-    if image_file and os.path.exists(image_file):
+    if os.path.exists(image_file):
         try:
             with open(image_file, "rb") as f:
                 b64_img = base64.b64encode(f.read()).decode("utf-8")
@@ -55,7 +51,6 @@ def transfer_to_spotify(text_file: str, desc_file: str = "") -> str:
         except Exception as e:
             print("⚠️ Could not upload image:", e)
 
-    # Search and collect track IDs
     found, not_found = [], []
 
     for i, line in enumerate(track_lines):
@@ -76,29 +71,18 @@ def transfer_to_spotify(text_file: str, desc_file: str = "") -> str:
 
         time.sleep(0.5)
 
-    # Add tracks in chunks
     for i in range(0, len(found), 100):
         sp.playlist_add_items(playlist_id, found[i:i + 100])
 
-    # Save skipped
     if not_found:
         skipped_file = "spotify_skipped_tracks.txt"
         with open(skipped_file, "w", encoding="utf-8") as f:
             f.write("\n".join(not_found))
         print(f"⚠️ {len(not_found)} not found. Saved to {skipped_file}")
 
-
-    for file in [f"{base_name}.txt", f"{base_name}.jpg", f"{base_name}.desc.txt" ,"skipped_tracks.txt"]:
+    for file in [f"{base_name}.txt", f"{base_name}.jpg", f"{base_name}.desc.txt"]:
         if os.path.exists(file):
             os.remove(file)
-            print(f" Deleted {file}")
+            print(f"🗑️ Deleted {file}")
 
     return f"✅ Transfer complete! {len(found)} tracks added to '{base_name}' playlist."
-
-# Uncomment this to use as standalone
-# if __name__ == "__main__":
-#     print(transfer_to_spotify(
-#         os.getenv("TEXT_FILE"),
-#         os.getenv("DESCRIPTION_FILE", ""),
-#         os.getenv("COVER_IMAGE_FILE", "")
-#     ))
