@@ -125,10 +125,10 @@ async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...
     from spotify import transfer_to_spotify
     from soundcloud import get_saved_token
 
+    print(f"Received session_id: {session_id}")
+
     sc_token = get_saved_token(session_id)
     spotify_token = get_saved_spotify_token(session_id)
-
-    print(f"Received session_id: {session_id}")
 
     if not spotify_token:
         return RedirectResponse("/auth/spotify", status_code=302)
