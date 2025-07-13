@@ -30,16 +30,15 @@ templates = Jinja2Templates(directory="templates")
 
 @app.get("/auth/spotify")
 def auth_spotify():
-    session_id = str(uuid4())  # Create a new session ID
-    redirect_uri = f"{SPOTIFY_REDIRECT_URI}"  # Base redirect URI without session ID
+    session_id = str(uuid4())
+    redirect_uri = f"{SPOTIFY_REDIRECT_URI}?session_id={session_id}"  # Pass session_id here
     params = urlencode({
         "client_id": SPOTIFY_CLIENT_ID,
         "response_type": "code",
-        "redirect_uri": redirect_uri,  # No session_id here
+        "redirect_uri": redirect_uri,
         "scope": SPOTIFY_SCOPE
     })
     return RedirectResponse(f"https://accounts.spotify.com/authorize?{params}")
-
 
 @app.get("/auth/soundcloud")
 def auth_soundcloud():

@@ -30,19 +30,19 @@
 
   <script>
     document.addEventListener("DOMContentLoaded", function() {
-      const params = new URLSearchParams(window.location.search);
-      const sessionId = params.get("session_id");
-      console.log("Session ID from URL:", sessionId);
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    console.log("Session ID from URL:", sessionId);
 
-      if (sessionId) {
+    if (sessionId) {
         document.querySelectorAll("form").forEach(form => {
-          const hiddenInput = document.createElement("input");
-          hiddenInput.type = "hidden";
-          hiddenInput.name = "session_id"; // name to match backend
-          hiddenInput.value = sessionId;
-          form.appendChild(hiddenInput);
+            const hiddenInput = document.createElement("input");
+            hiddenInput.type = "hidden";
+            hiddenInput.name = "session_id";
+            hiddenInput.value = sessionId;
+            form.appendChild(hiddenInput);
         });
-      }
+        }
     });
   </script>
 
