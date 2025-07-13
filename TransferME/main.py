@@ -91,10 +91,13 @@ async def home(request: Request):
         "request": request,
         "session_id": session_id
     })
+
 @app.post("/transfer/spotify-to-soundcloud")
 async def spotify_to_soundcloud(request: Request, spotify_url: str = Form(...), session_id: str = Form(...)):
     from export_spotify_playlist import export_spotify_playlist
     from soundcloud import transfer_to_soundcloud, get_saved_token
+
+    print(f"Received session_id: {session_id}")
 
     sc_token = get_saved_token(session_id)
     spotify_token = get_saved_spotify_token(session_id)
@@ -120,7 +123,7 @@ async def spotify_to_soundcloud(request: Request, spotify_url: str = Form(...), 
 
 
 @app.post("/transfer/soundcloud-to-spotify")
-async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...), session_id : str = Form(...)):
+async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...), session_id: str = Form(...)):
     from export_soundcloud_playlist import export_soundcloud_playlist
     from spotify import transfer_to_spotify
     from soundcloud import get_saved_token
