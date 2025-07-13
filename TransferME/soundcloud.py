@@ -9,13 +9,12 @@ from utils import sanitize_filename
 CLIENT_ID = os.getenv("SCCLIENT_ID")
 CLIENT_SECRET = os.getenv("SCCLIENT_SECRET")
 REDIRECT_URI = os.getenv("SCREDIRECT_URI")
-TOKEN_FILE = os.getenv("SCTOKEN_FILE", "soundcloud_token.json")
 
-def get_saved_token(token_file=TOKEN_FILE):
-    if os.path.exists(token_file):
-        with open(token_file, "r") as f:
-            token_data = json.load(f)
-            return token_data.get("access_token")
+def get_saved_token(session_id: str = "default") -> str | None:
+    path = f"tokens/{session_id}_sc.json"
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)["access_token"]
     return None
 
 def search_track(title_line, headers):

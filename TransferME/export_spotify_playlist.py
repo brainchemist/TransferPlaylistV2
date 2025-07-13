@@ -32,10 +32,10 @@ def reencode_jpeg(image_path):
         print(f"❌ Failed to re-encode image: {e}")
 
 def export_spotify_playlist(playlist_url: str, token: str) -> tuple[str, str] | tuple[None, None]:
-    sp = spotipy.Spotify(auth=token)
     if not token:
         print("❌ No Spotify token provided.")
         return None, None
+    sp = spotipy.Spotify(auth=token)
 
     if "playlist/" in playlist_url:
         playlist_id = playlist_url.split("playlist/")[1].split("?")[0]
@@ -95,8 +95,10 @@ def export_spotify_playlist(playlist_url: str, token: str) -> tuple[str, str] | 
     return txt_file, safe_name
 
 
-def get_saved_spotify_token():
-    if os.path.exists(SPOTIFY_TOKEN_FILE):
-        with open(SPOTIFY_TOKEN_FILE) as f:
+def get_saved_spotify_token(session_id: str):
+    path = f"tokens/{session_id}.json"
+    if os.path.exists(path):
+        with open(path) as f:
             return json.load(f)["access_token"]
     return None
+

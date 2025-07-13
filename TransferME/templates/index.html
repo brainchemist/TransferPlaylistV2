@@ -7,13 +7,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
 </head>
 <body>
-
-  <!-- Move heading to top of page -->
   <header>
     <h1 class="page-title">Transfer Playlist</h1>
   </header>
 
-  <!-- Centered container -->
   <div class="container">
     <h2>Spotify ↔ SoundCloud</h2>
 
@@ -30,5 +27,18 @@
     </form>
   </div>
 
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    if (sessionId) {
+      document.querySelectorAll("form").forEach(form => {
+        const hiddenInput = document.createElement("input");
+        hiddenInput.type = "hidden";
+        hiddenInput.name = "session_id";
+        hiddenInput.value = sessionId;
+        form.appendChild(hiddenInput);
+      });
+    }
+  </script>
 </body>
 </html>

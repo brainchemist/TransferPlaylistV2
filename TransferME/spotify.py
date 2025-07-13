@@ -5,19 +5,19 @@ import base64
 import json
 import spotipy
 
-def get_saved_spotify_token():
-    token_file = "spotify_token.json"
-    if os.path.exists(token_file):
-        with open(token_file) as f:
+def get_saved_spotify_token(session_id: str):
+    path = f"tokens/{session_id}.json"
+    if os.path.exists(path):
+        with open(path) as f:
             return json.load(f)["access_token"]
     return None
 
-def transfer_to_spotify(text_file: str, desc_file: str = "") -> str:
+def transfer_to_spotify(text_file: str, session_id: str, desc_file: str = "") -> str:
     if not text_file or not os.path.exists(text_file):
         return "❌ Playlist text file not found."
 
     base_name = os.path.splitext(os.path.basename(text_file))[0]
-    token = get_saved_spotify_token()
+    token = get_saved_spotify_token(session_id)
     if not token:
         return "❌ Spotify token not found. Please authenticate first."
 
