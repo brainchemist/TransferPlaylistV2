@@ -15,23 +15,26 @@
     <h2>Spotify ↔ SoundCloud</h2>
 
     <form action="/transfer/spotify-to-soundcloud" method="post">
-      <input type="url" name="spotify_url" placeholder="Enter Spotify playlist URL" required />
+      <label for="spotify_url">Spotify Playlist URL</label>
+      <input type="url" id="spotify_url" name="spotify_url" placeholder="Enter Spotify playlist URL" required />
       <button type="submit">Transfer to SoundCloud</button>
     </form>
 
     <div style="margin: 1.5rem 0; text-align: center; color: #9ca3af;">or</div>
 
     <form action="/transfer/soundcloud-to-spotify" method="post">
-      <input type="url" name="soundcloud_url" placeholder="Enter SoundCloud playlist URL" required />
-        <input type="hidden" name="session_id" value="1234-abcd-5678-efgh" />
+      <label for="soundcloud_url">SoundCloud Playlist URL</label>
+      <input type="url" id="soundcloud_url" name="soundcloud_url" placeholder="Enter SoundCloud playlist URL" required />
       <button type="submit">Transfer to Spotify</button>
     </form>
+
   </div>
 
   <script>
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get("session_id");
     if (sessionId) {
+      console.log("Session ID:", sessionId);
       document.querySelectorAll("form").forEach(form => {
         const hiddenInput = document.createElement("input");
         hiddenInput.type = "hidden";
