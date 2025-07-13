@@ -128,6 +128,8 @@ async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...
     sc_token = get_saved_token(session_id)
     spotify_token = get_saved_spotify_token(session_id)
 
+    print(f"Received session_id: {session_id}")
+
     if not spotify_token:
         return RedirectResponse("/auth/spotify", status_code=302)
     if not sc_token:
