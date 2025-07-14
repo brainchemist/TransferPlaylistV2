@@ -32,34 +32,34 @@ templates = Jinja2Templates(directory="templates")
 def auth_spotify():
     session_id = str(uuid4())
     print(f"Received SP session_id: {session_id}")
-    redirect_uri = f"{SPOTIFY_REDIRECT_URI}"
+    redirect_uri = f"{SPOTIFY_REDIRECT_URI}?session_id={session_id}"
     params = urlencode({
         "client_id": SPOTIFY_CLIENT_ID,
         "response_type": "code",
         "redirect_uri": redirect_uri,
         "scope": SPOTIFY_SCOPE,
-        "state": session_id
+        "state": session_id  # Ensuring state matches the session_id
     })
     return RedirectResponse(f"https://accounts.spotify.com/authorize?{params}")
+
 @app.get("/auth/soundcloud")
 def auth_soundcloud():
     session_id = str(uuid4())  # Generate session ID
     print(f"Received SC session_id: {session_id}")
 
-    redirect_uri_with_session = f"{REDIRECT_URI}"
+    redirect_uri_with_session = f"{REDIRECT_URI}?session_id={session_id}"
     auth_url = (
         f"https://soundcloud.com/connect?"
         f"client_id={CLIENT_ID}&redirect_uri={redirect_uri_with_session}"
         f"&response_type=code&scope=non-expiring&state={session_id}"
     )
-
     return RedirectResponse(auth_url)
 
 
 @app.get("/callback")
 async def soundcloud_callback(request: Request):
     code = request.query_params.get("code")
-    session_id = request.query_params.get("state")  # Extract session_id from state parameter
+    session_id = request.query_params.get("state")  # Use the 'state' as session ID
 
     if not code:
         return templates.TemplateResponse("result.html", {
@@ -88,7 +88,7 @@ async def soundcloud_callback(request: Request):
     with open(f"tokens/{session_id}_sc.json", "w") as f:
         json.dump(token_data, f)
 
-    return RedirectResponse(f"/?session_id={session_id}")  # Redirect to homepage with session_id
+    return RedirectResponse(f"/?session_id={session_id}")  # Pass session_id to the homepage
 
 
 @app.get("/", response_class=HTMLResponse)
