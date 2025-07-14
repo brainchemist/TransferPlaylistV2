@@ -16,6 +16,7 @@
 
     <form action="/transfer/spotify-to-soundcloud" method="post">
       <input type="url" name="spotify_url" placeholder="Enter Spotify playlist URL" required />
+      <input type="hidden" name="session_id" id="session_id_spotify">
       <button type="submit">Transfer to SoundCloud</button>
     </form>
 
@@ -23,27 +24,34 @@
 
     <form action="/transfer/soundcloud-to-spotify" method="post">
       <input type="url" name="soundcloud_url" placeholder="Enter SoundCloud playlist URL" required />
+      <input type="hidden" name="session_id" id="session_id_soundcloud">
       <button type="submit">Transfer to Spotify</button>
     </form>
+
 
   </div>
 
   <script>
-    document.addEventListener("DOMContentLoaded", function() {
-    const params = new URLSearchParams(window.location.search);
-    const sessionId = params.get("session_id");
-    console.log("Session ID from URL:", sessionId);
+      document.addEventListener("DOMContentLoaded", function() {
+      const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get("session_id");
+      console.log("Session ID from URL:", sessionId);
 
-    if (sessionId) {
-        document.querySelectorAll("form").forEach(form => {
-            const hiddenInput = document.createElement("input");
-            hiddenInput.type = "hidden";
-            hiddenInput.name = "session_id";
-            hiddenInput.value = sessionId;
-            form.appendChild(hiddenInput);
-        });
-        }
-    });
+      if (sessionId) {
+          // Set session_id in the correct hidden inputs
+          const spotifySessionInput = document.getElementById('session_id_spotify');
+          if (spotifySessionInput) {
+              spotifySessionInput.value = sessionId;
+          }
+
+          const soundcloudSessionInput = document.getElementById('session_id_soundcloud');
+          if (soundcloudSessionInput) {
+              soundcloudSessionInput.value = sessionId;
+          }
+          }
+      });
+
+
   </script>
 
 </body>
