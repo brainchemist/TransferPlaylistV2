@@ -53,6 +53,7 @@ def auth_soundcloud():
         f"client_id={CLIENT_ID}&redirect_uri={redirect_uri_with_session}"
         f"&response_type=code&scope=non-expiring&state={session_id}"
     )
+    print(f"Redirect URL: {auth_url}")  # Debugging line, to see the URL
     return RedirectResponse(auth_url)
 
 
@@ -139,9 +140,9 @@ async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...
     print(f"Received session_id: {session_id}")
 
     current_directory = os.getcwd()
-    files_in_directory = os.listdir(current_directory)
+    files_in_directory = os.listdir(f"{current_directory}/tokens")
     print(f"Current directory: {current_directory}")
-    print(f"Files in directory: {files_in_directory}")
+    print(f"Files in directory: {files_in_directory}/tokens")
 
     sc_token = get_saved_token(session_id)
     spotify_token = get_saved_spotify_token(session_id)
