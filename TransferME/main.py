@@ -88,6 +88,7 @@ async def soundcloud_callback(request: Request):
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     session_id = request.query_params.get("session_id", "default")
+    print(f"Received session_id: {session_id}")
     return templates.TemplateResponse("index.html", {
         "request": request,
         "session_id": session_id
