@@ -32,7 +32,7 @@ templates = Jinja2Templates(directory="templates")
 def auth_spotify():
     session_id = str(uuid4())
     print(f"Received SP session_id: {session_id}")
-    redirect_uri = f"{SPOTIFY_REDIRECT_URI}?session_id={session_id}"
+    redirect_uri = f"{SPOTIFY_REDIRECT_URI}"
     params = urlencode({
         "client_id": SPOTIFY_CLIENT_ID,
         "response_type": "code",
