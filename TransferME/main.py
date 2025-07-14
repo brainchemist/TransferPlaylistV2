@@ -138,6 +138,11 @@ async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...
 
     print(f"Received session_id: {session_id}")
 
+    current_directory = os.getcwd()
+    files_in_directory = os.listdir(current_directory)
+    print(f"Current directory: {current_directory}")
+    print(f"Files in directory: {files_in_directory}")
+
     sc_token = get_saved_token(session_id)
     spotify_token = get_saved_spotify_token(session_id)
 
