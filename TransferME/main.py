@@ -43,20 +43,23 @@ def auth_spotify():
     return RedirectResponse(f"https://accounts.spotify.com/authorize?{params}")
 @app.get("/auth/soundcloud")
 def auth_soundcloud():
-    session_id = str(uuid4())
+    session_id = str(uuid4())  # Generate session ID
     print(f"Received SC session_id: {session_id}")
-    redirect_uri_with_session = f"{REDIRECT_URI}?session_id={session_id}"
+
+    redirect_uri_with_session = f"{REDIRECT_URI}"
     auth_url = (
         f"https://soundcloud.com/connect?"
         f"client_id={CLIENT_ID}&redirect_uri={redirect_uri_with_session}"
-        f"&response_type=code&scope=non-expiring"
+        f"&response_type=code&scope=non-expiring&state={session_id}"
     )
+
     return RedirectResponse(auth_url)
+
 
 @app.get("/callback")
 async def soundcloud_callback(request: Request):
     code = request.query_params.get("code")
-    session_id = request.query_params.get("session_id", "default")
+    session_id = request.query_params.get("state")  # Extract session_id from state parameter
 
     if not code:
         return templates.TemplateResponse("result.html", {
@@ -64,10 +67,11 @@ async def soundcloud_callback(request: Request):
             "message": "❌ Authorization code not found in callback."
         })
 
+    # Proceed to exchange code for access token
     token_response = requests.post("https://api.soundcloud.com/oauth2/token", data={
         'client_id': CLIENT_ID,
         'client_secret': CLIENT_SECRET,
-        'redirect_uri': f"{REDIRECT_URI}?session_id={session_id}",
+        'redirect_uri': f"{REDIRECT_URI}",
         'grant_type': 'authorization_code',
         'code': code
     })
@@ -84,7 +88,7 @@ async def soundcloud_callback(request: Request):
     with open(f"tokens/{session_id}_sc.json", "w") as f:
         json.dump(token_data, f)
 
-    return RedirectResponse(f"/?session_id={session_id}")
+    return RedirectResponse(f"/?session_id={session_id}")  # Redirect to homepage with session_id
 
 
 @app.get("/", response_class=HTMLResponse)
