@@ -32,15 +32,15 @@ templates = Jinja2Templates(directory="templates")
 def auth_spotify():
     session_id = str(uuid4())
     print(f"Received SP session_id: {session_id}")
-    redirect_uri = f"{SPOTIFY_REDIRECT_URI}?session_id={session_id}"  # Pass session_id here
+    redirect_uri = f"{SPOTIFY_REDIRECT_URI}"
     params = urlencode({
         "client_id": SPOTIFY_CLIENT_ID,
         "response_type": "code",
         "redirect_uri": redirect_uri,
-        "scope": SPOTIFY_SCOPE
+        "scope": SPOTIFY_SCOPE,
+        "state": session_id
     })
     return RedirectResponse(f"https://accounts.spotify.com/authorize?{params}")
-
 @app.get("/auth/soundcloud")
 def auth_soundcloud():
     session_id = str(uuid4())
@@ -152,32 +152,26 @@ async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...
 @app.get("/callback_spotify")
 async def spotify_callback(request: Request):
     code = request.query_params.get("code")
-    session_id = request.query_params.get("session_id")  # Extract session_id from the query
+    session_id = request.query_params.get("state")  # Get session_id from state parameter
 
-    # Ensure you handle missing or invalid session_id gracefully
-    if not session_id:
+    if not code:
         return templates.TemplateResponse("result.html", {
             "request": request,
-            "message": "❌ Missing session ID"
+            "message": "❌ No authorization code found."
         })
 
     token_response = requests.post("https://accounts.spotify.com/api/token", data={
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": f"{SPOTIFY_REDIRECT_URI}",  # Clean redirect URI
+        "redirect_uri": f"{SPOTIFY_REDIRECT_URI}",
         "client_id": SPOTIFY_CLIENT_ID,
         "client_secret": SPOTIFY_CLIENT_SECRET
     })
-
-    if token_response.status_code != 200:
-        return templates.TemplateResponse("result.html", {
-            "request": request,
-            "message": f"❌ Token exchange failed: {token_response.text}"
-        })
 
     token_data = token_response.json()
     os.makedirs("tokens", exist_ok=True)
     with open(f"tokens/{session_id}.json", "w") as f:
         json.dump(token_data, f)
 
-    return RedirectResponse(f"/?session_id={session_id}")
+    return RedirectResponse(f"/?session_id={session_id}")  # Redirect with the session_id
+
