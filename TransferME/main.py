@@ -47,11 +47,10 @@ def auth_soundcloud():
     session_id = str(uuid4())  # Generate session ID
     print(f"Received SC session_id: {session_id}")
 
-    redirect_uri_with_session = f"{REDIRECT_URI}?session_id={session_id}"
+    redirect_uri_with_session = f"{REDIRECT_URI}/callback?session_id={session_id}"
     auth_url = (
         f"https://soundcloud.com/connect?"
-        f"client_id={CLIENT_ID}&redirect_uri={redirect_uri_with_session}"
-        f"&response_type=code&scope=non-expiring&state={session_id}"
+        f"client_id={CLIENT_ID}&redirect_uri={redirect_uri_with_session}&response_type=code&scope=non-expiring&state={session_id}"
     )
     print(f"Redirect URL: {auth_url}")  # Debugging line, to see the URL
     return RedirectResponse(auth_url)
@@ -138,11 +137,14 @@ async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...
     from soundcloud import get_saved_token
 
     print(f"Received session_id: {session_id}")
+    try:
+        current_directory = os.getcwd()
+        files_in_directory = os.listdir(f"{current_directory}")
+        print(f"Current directory: {current_directory}")
+        print(f"Files in directory: {files_in_directory}")
 
-    current_directory = os.getcwd()
-    files_in_directory = os.listdir(f"{current_directory}")
-    print(f"Current directory: {current_directory}")
-    print(f"Files in directory: {files_in_directory}")
+    except FileNotFoundError:
+        print(f"Not yet.")
 
     sc_token = get_saved_token(session_id)
     spotify_token = get_saved_spotify_token(session_id)
