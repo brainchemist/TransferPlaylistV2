@@ -48,7 +48,7 @@ def auth_soundcloud():
     print(f"Received SC session_id: {session_id}")
 
     # Use the correct redirect URI for SoundCloud
-    redirect_uri_with_session = f"{REDIRECT_URI}/callback"  # No session_id in redirect_uri
+    redirect_uri_with_session = f"{REDIRECT_URI}"  # No session_id in redirect_uri
 
     auth_url = (
         f"https://soundcloud.com/connect?"
