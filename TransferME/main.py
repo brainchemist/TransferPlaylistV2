@@ -47,19 +47,22 @@ def auth_soundcloud():
     session_id = str(uuid4())  # Generate session ID
     print(f"Received SC session_id: {session_id}")
 
-    redirect_uri_with_session = f"{REDIRECT_URI}/callback?session_id={session_id}"
+    # Use the correct redirect URI for SoundCloud
+    redirect_uri_with_session = f"{REDIRECT_URI}/callback"  # No session_id in redirect_uri
+
     auth_url = (
         f"https://soundcloud.com/connect?"
         f"client_id={CLIENT_ID}&redirect_uri={redirect_uri_with_session}&response_type=code&scope=non-expiring&state={session_id}"
     )
-    print(f"Redirect URL: {auth_url}")  # Debugging line, to see the URL
+
     return RedirectResponse(auth_url)
 
 
 @app.get("/callback")
 async def soundcloud_callback(request: Request):
+    # Get the code and session_id (from state)
     code = request.query_params.get("code")
-    session_id = request.query_params.get("state")  # Use the 'state' as session ID
+    session_id = request.query_params.get("state")  # The session_id is now passed in the `state` parameter
 
     if not code:
         return templates.TemplateResponse("result.html", {
@@ -67,11 +70,11 @@ async def soundcloud_callback(request: Request):
             "message": "❌ Authorization code not found in callback."
         })
 
-    # Proceed to exchange code for access token
+    # Proceed to exchange the code for an access token
     token_response = requests.post("https://api.soundcloud.com/oauth2/token", data={
         'client_id': CLIENT_ID,
         'client_secret': CLIENT_SECRET,
-        'redirect_uri': f"{REDIRECT_URI}",
+        'redirect_uri': f"{REDIRECT_URI}/callback",  # Same callback URL
         'grant_type': 'authorization_code',
         'code': code
     })
@@ -82,14 +85,14 @@ async def soundcloud_callback(request: Request):
             "message": f"❌ Token exchange failed: {token_response.text}"
         })
 
-    # ✅ Save token to session-based file
+    # Save the token to the session-based file
     token_data = token_response.json()
     os.makedirs("tokens", exist_ok=True)
     with open(f"tokens/{session_id}_sc.json", "w") as f:
         json.dump(token_data, f)
 
-    return RedirectResponse(f"/?session_id={session_id}")  # Pass session_id to the homepage
-
+    # Redirect back to the homepage with the session_id
+    return RedirectResponse(f"/?session_id={session_id}")
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -139,7 +142,7 @@ async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...
     print(f"Received session_id: {session_id}")
     try:
         current_directory = os.getcwd()
-        files_in_directory = os.listdir(f"{current_directory}")
+        files_in_directory = os.listdir(f"{current_directory}/tokens")
         print(f"Current directory: {current_directory}")
         print(f"Files in directory: {files_in_directory}")
 
