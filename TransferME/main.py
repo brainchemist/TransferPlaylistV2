@@ -7,8 +7,8 @@ import os
 import json
 import requests
 from urllib.parse import urlencode
-from uuid import uuid4
 from export_spotify_playlist import get_saved_spotify_token
+from helpers import ensure_session_id
 
 load_dotenv()
 app = FastAPI()
@@ -28,41 +28,44 @@ SPOTIFY_TOKEN_FILE = "spotify_token.json"
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
+
 @app.get("/auth/spotify")
-def auth_spotify():
-    session_id = str(uuid4())
-    print(f"Received SP session_id: {session_id}")
-    redirect_uri = f"{SPOTIFY_REDIRECT_URI}"
+def auth_spotify(request: Request):
+    session_id = ensure_session_id(request)
+    print(f"Auth SP using session_id: {session_id}")
+
+    redirect_uri = SPOTIFY_REDIRECT_URI
     params = urlencode({
         "client_id": SPOTIFY_CLIENT_ID,
         "response_type": "code",
         "redirect_uri": redirect_uri,
         "scope": SPOTIFY_SCOPE,
-        "state": session_id  # Ensuring state matches the session_id
+        "state": session_id
     })
-    return RedirectResponse(f"https://accounts.spotify.com/authorize?{params}")
+    resp = RedirectResponse(f"https://accounts.spotify.com/authorize?{params}")
+    resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
+    return resp
 
 @app.get("/auth/soundcloud")
-def auth_soundcloud():
-    session_id = str(uuid4())  # Generate session ID
-    print(f"Received SC session_id: {session_id}")
+def auth_soundcloud(request: Request):
+    session_id = ensure_session_id(request)
+    print(f"Auth SC using session_id: {session_id}")
 
-    # Use the correct redirect URI for SoundCloud
-    redirect_uri_with_session = f"{REDIRECT_URI}"  # No session_id in redirect_uri
-
+    redirect_uri_with_session = SCREDIRECT_URI
     auth_url = (
-        f"https://soundcloud.com/connect?"
-        f"client_id={CLIENT_ID}&redirect_uri={redirect_uri_with_session}&response_type=code&scope=non-expiring&state={session_id}"
+        "https://soundcloud.com/connect?"
+        f"client_id={CLIENT_ID}&redirect_uri={redirect_uri_with_session}"
+        f"&response_type=code&scope=non-expiring&state={session_id}"
     )
-
-    return RedirectResponse(auth_url)
-
+    resp = RedirectResponse(auth_url)
+    resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
+    return resp
 
 @app.get("/callback")
 async def soundcloud_callback(request: Request):
     # Get the code and session_id (from state)
     code = request.query_params.get("code")
-    session_id = request.query_params.get("state")  # The session_id is now passed in the `state` parameter
+    session_id = request.query_params.get("state")
 
     if not code:
         return templates.TemplateResponse("result.html", {
@@ -91,8 +94,9 @@ async def soundcloud_callback(request: Request):
     with open(f"tokens/{session_id}_sc.json", "w") as f:
         json.dump(token_data, f)
 
-    # Redirect back to the homepage with the session_id
-    return RedirectResponse(f"/?session_id={session_id}")
+    resp = RedirectResponse(f"/?session_id={session_id}")
+    resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
+    return resp
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -109,6 +113,9 @@ async def spotify_to_soundcloud(request: Request, spotify_url: str = Form(...), 
     from soundcloud import transfer_to_soundcloud, get_saved_token
 
     print(f"Received session_id: {session_id}")
+
+    if not session_id:
+        session_id = request.cookies.get("session_id")
 
     sc_token = get_saved_token(session_id)
     spotify_token = get_saved_spotify_token(session_id)
@@ -188,5 +195,6 @@ async def spotify_callback(request: Request):
     with open(f"tokens/{session_id}.json", "w") as f:
         json.dump(token_data, f)
 
-    return RedirectResponse(f"/?session_id={session_id}")  # Redirect with the session_id
-
+    resp = RedirectResponse(f"/?session_id={session_id}")
+    resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
+    return resp
