@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Transferring…</title>
+  <link rel="stylesheet" href="/static/style_result.css" />
+  <style>
+    .wrap { max-width: 640px; margin: 4rem auto; font-family: Inter, system-ui, sans-serif; }
+    .bar { height: 14px; background: #eee; border-radius: 999px; overflow: hidden; }
+    .fill { height: 100%; width: 0%; background: #111827; transition: width .25s; }
+    .msg  { margin-top: .75rem; color: #4b5563; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Transferring your playlist…</h1>
+    <div class="bar"><div class="fill" id="fill"></div></div>
+    <div class="msg" id="msg">Starting…</div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    const fill = document.getElementById("fill");
+    const msg  = document.getElementById("msg");
+
+    async function tick() {
+      try {
+        const r = await fetch(`/progress?session_id=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
+        const data = await r.json();
+        fill.style.width = (data.percent || 0) + "%";
+        msg.textContent = data.message || "";
+
+        if ((data.percent || 0) >= 100) {
+          // Optionally jump to a final page or keep this as the receipt
+          // window.location = `/transfer/result?session_id=${encodeURIComponent(sessionId)}`
+          return; // stop polling
+        }
+      } catch (e) {
+        msg.textContent = "…";
+      }
+      setTimeout(tick, 1000);
+    }
+    tick();
+  </script>
+</body>
+</html>

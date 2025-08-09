@@ -9,6 +9,9 @@ import requests
 from urllib.parse import urlencode
 from export_spotify_playlist import get_saved_spotify_token
 from helpers import ensure_session_id
+from collections import defaultdict
+from fastapi import BackgroundTasks
+import time
 
 load_dotenv()
 app = FastAPI()
@@ -27,6 +30,49 @@ SPOTIFY_TOKEN_FILE = "spotify_token.json"
 # Static & Templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+
+PROGRESS = defaultdict(lambda: {"percent": 0, "message": "Waiting…"})
+
+def set_progress(session_id: str, percent: int, message: str):
+    PROGRESS[session_id] = {"percent": max(0, min(100, percent)), "message": message}
+
+
+def run_spotify_to_sc(session_id: str, spotify_url: str):
+    try:
+        set_progress(session_id, 1, "Starting…")
+
+        from export_spotify_playlist import export_spotify_playlist
+        from soundcloud import transfer_to_soundcloud, get_saved_token
+
+        sc_token = get_saved_token(session_id)
+        spotify_token = get_saved_spotify_token(session_id)
+
+        if not spotify_token:
+            set_progress(session_id, 100, "❌ Spotify auth required.")
+            return
+        if not sc_token:
+            set_progress(session_id, 100, "❌ SoundCloud auth required.")
+            return
+
+        set_progress(session_id, 5, "Exporting from Spotify…")
+        result = export_spotify_playlist(spotify_url, token=spotify_token)
+        if not result:
+            set_progress(session_id, 100, "❌ Could not export playlist.")
+            return
+
+        txt_file, name = result
+        set_progress(session_id, 30, f"Found playlist: {name}")
+
+        # If transfer_to_soundcloud lets you pass a callback, use it to report fine-grained progress.
+        # Otherwise, simulate rough phases:
+        set_progress(session_id, 35, "Searching tracks on SoundCloud…")
+
+        result_msg = transfer_to_soundcloud(txt_file, token=sc_token)  # do your per-track updates inside to be fancy
+        set_progress(session_id, 100, f"✅ Done: {result_msg}")
+
+    except Exception as e:
+        set_progress(session_id, 100, f"❌ Error: {e}")
 
 
 @app.get("/auth/spotify")
@@ -107,6 +153,18 @@ async def home(request: Request):
         "session_id": session_id
     })
 
+from fastapi.responses import JSONResponse
+
+@app.get("/progress")
+def get_progress(session_id: str):
+    return JSONResponse(PROGRESS.get(session_id, {"percent": 0, "message": "Waiting…"}))
+
+
+@app.get("/status", response_class=HTMLResponse)
+def status_page(request: Request, session_id: str):
+    return templates.TemplateResponse("status.html", {"request": request})
+
+
 @app.get("/transfer", response_class=HTMLResponse)
 async def transfer_ui(request: Request):
     sid = request.query_params.get("session_id") or ensure_session_id(request)
@@ -118,12 +176,23 @@ async def transfer_ui(request: Request):
 from helpers import ensure_session_id
 
 @app.post("/transfer/spotify-to-soundcloud")
-async def spotify_to_soundcloud(request: Request, spotify_url: str = Form(...), session_id: str = Form("")):
+async def spotify_to_soundcloud(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    spotify_url: str = Form(...),
+    session_id: str = Form("")
+):
     if not session_id:
         session_id = request.cookies.get("session_id") or ensure_session_id(request)
 
-    from export_spotify_playlist import export_spotify_playlist
-    from soundcloud import transfer_to_soundcloud, get_saved_token
+    # Quick validations before we even schedule work
+    if "open.spotify.com/playlist/" not in spotify_url:
+        return templates.TemplateResponse("result.html", {
+            "request": request,
+            "message": "❌ That doesn’t look like a Spotify playlist URL."
+        })
+
+    from soundcloud import get_saved_token
     from export_spotify_playlist import get_saved_spotify_token
 
     sc_token = get_saved_token(session_id)
@@ -134,22 +203,14 @@ async def spotify_to_soundcloud(request: Request, spotify_url: str = Form(...), 
     if not sc_token:
         return RedirectResponse("/auth/soundcloud", status_code=302)
 
-    if "open.spotify.com/playlist/" not in spotify_url:
-        return templates.TemplateResponse("result.html", {
-            "request": request,
-            "message": "❌ That doesn’t look like a Spotify playlist URL."
-        })
+    # Reset progress and kick off the job
+    set_progress(session_id, 0, "Queued…")
+    background_tasks.add_task(run_spotify_to_sc, session_id, spotify_url)
 
-    txt_file, name = export_spotify_playlist(spotify_url, token=spotify_token)
-
-    if not txt_file:
-        return templates.TemplateResponse("result.html", {
-            "request": request,
-            "message": "❌ Could not export playlist (got 404 from Spotify). Check the link, make the playlist public, or re-auth Spotify."
-        })
-
-    result = transfer_to_soundcloud(txt_file, token=sc_token)
-    return templates.TemplateResponse("result.html", {"request": request, "message": result})
+    # Redirect to the live status page (DO NOT run the transfer here)
+    resp = RedirectResponse(f"/status?session_id={session_id}", status_code=303)
+    resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
+    return resp
 
 @app.post("/transfer/soundcloud-to-spotify")
 async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...), session_id: str = Form(...)):
