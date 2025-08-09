@@ -14,9 +14,9 @@ load_dotenv()
 app = FastAPI()
 
 # ENV config
-CLIENT_ID = os.getenv("SCCLIENT_ID")
-CLIENT_SECRET = os.getenv("SCCLIENT_SECRET")
-REDIRECT_URI = os.getenv("SCREDIRECT_URI")
+SCCLIENT_ID = os.getenv("SCCLIENT_ID")
+SCCLIENT_SECRET = os.getenv("SCCLIENT_SECRET")
+SCREDIRECT_URI = os.getenv("SCREDIRECT_URI")
 TOKEN_FILE = os.getenv("SCTOKEN_FILE", "soundcloud_token.json")
 SPOTIFY_CLIENT_ID = os.getenv("SPCLIENT_ID")
 SPOTIFY_REDIRECT_URI = os.getenv("SPREDIRECT_URI")
@@ -54,7 +54,7 @@ def auth_soundcloud(request: Request):
     redirect_uri_with_session = SCREDIRECT_URI
     auth_url = (
         "https://soundcloud.com/connect?"
-        f"client_id={CLIENT_ID}&redirect_uri={redirect_uri_with_session}"
+        f"client_id={SCCLIENT_ID}&redirect_uri={redirect_uri_with_session}"
         f"&response_type=code&scope=non-expiring&state={session_id}"
     )
     resp = RedirectResponse(auth_url)
@@ -75,9 +75,9 @@ async def soundcloud_callback(request: Request):
 
     # Proceed to exchange the code for an access token
     token_response = requests.post("https://api.soundcloud.com/oauth2/token", data={
-        'client_id': CLIENT_ID,
+        'client_id': SCCLIENT_ID,
         'client_secret': CLIENT_SECRET,
-        'redirect_uri': f"{REDIRECT_URI}",  # Same callback URL
+        'redirect_uri': f"{SCREDIRECT_URI}",  # Same callback URL
         'grant_type': 'authorization_code',
         'code': code
     })
