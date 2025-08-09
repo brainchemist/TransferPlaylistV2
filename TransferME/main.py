@@ -94,7 +94,7 @@ async def soundcloud_callback(request: Request):
     with open(f"tokens/{session_id}_sc.json", "w") as f:
         json.dump(token_data, f)
 
-    resp = RedirectResponse(f"/?session_id={session_id}")
+    resp = RedirectResponse(f"/transfer/?session_id={session_id}", status_code=303)
     resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
     return resp
 
