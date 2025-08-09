@@ -107,15 +107,24 @@ async def home(request: Request):
         "session_id": session_id
     })
 
+@app.get("/transfer", response_class=HTMLResponse)
+async def transfer_ui(request: Request):
+    sid = request.query_params.get("session_id") or ensure_session_id(request)
+    resp = templates.TemplateResponse("index.html", {"request": request, "session_id": sid})
+    resp.set_cookie("session_id", sid, httponly=True, samesite="lax")
+    return resp
+
+
+from helpers import ensure_session_id
+
 @app.post("/transfer/spotify-to-soundcloud")
-async def spotify_to_soundcloud(request: Request, spotify_url: str = Form(...), session_id: str = Form(...)):
+async def spotify_to_soundcloud(request: Request, spotify_url: str = Form(...), session_id: str = Form("")):
+    if not session_id:
+        session_id = request.cookies.get("session_id") or ensure_session_id(request)
+
     from export_spotify_playlist import export_spotify_playlist
     from soundcloud import transfer_to_soundcloud, get_saved_token
-
-    print(f"Received session_id: {session_id}")
-
-    if not session_id:
-        session_id = request.cookies.get("session_id")
+    from export_spotify_playlist import get_saved_spotify_token
 
     sc_token = get_saved_token(session_id)
     spotify_token = get_saved_spotify_token(session_id)
@@ -125,20 +134,22 @@ async def spotify_to_soundcloud(request: Request, spotify_url: str = Form(...), 
     if not sc_token:
         return RedirectResponse("/auth/soundcloud", status_code=302)
 
-    result = export_spotify_playlist(spotify_url, token=spotify_token)
-    print("Export result:", result)
-
-    if result is None:
+    if "open.spotify.com/playlist/" not in spotify_url:
         return templates.TemplateResponse("result.html", {
             "request": request,
-            "message": "❌ Could not export playlist. Please check the Spotify link or token."
+            "message": "❌ That doesn’t look like a Spotify playlist URL."
         })
 
-    txt_file, name = result
+    txt_file, name = export_spotify_playlist(spotify_url, token=spotify_token)
+
+    if not txt_file:
+        return templates.TemplateResponse("result.html", {
+            "request": request,
+            "message": "❌ Could not export playlist (got 404 from Spotify). Check the link, make the playlist public, or re-auth Spotify."
+        })
+
     result = transfer_to_soundcloud(txt_file, token=sc_token)
-
     return templates.TemplateResponse("result.html", {"request": request, "message": result})
-
 
 @app.post("/transfer/soundcloud-to-spotify")
 async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...), session_id: str = Form(...)):
