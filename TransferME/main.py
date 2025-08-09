@@ -76,7 +76,7 @@ async def soundcloud_callback(request: Request):
     # Proceed to exchange the code for an access token
     token_response = requests.post("https://api.soundcloud.com/oauth2/token", data={
         'client_id': SCCLIENT_ID,
-        'client_secret': CLIENT_SECRET,
+        'client_secret': SCCLIENT_SECRET,
         'redirect_uri': f"{SCREDIRECT_URI}",  # Same callback URL
         'grant_type': 'authorization_code',
         'code': code
