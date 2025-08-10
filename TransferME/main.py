@@ -203,11 +203,9 @@ async def spotify_to_soundcloud(
     if not sc_token:
         return RedirectResponse("/auth/soundcloud", status_code=302)
 
-    # Reset progress and kick off the job
     set_progress(session_id, 0, "Queued…")
     background_tasks.add_task(run_spotify_to_sc, session_id, spotify_url)
 
-    # Redirect to the live status page (DO NOT run the transfer here)
     resp = RedirectResponse(f"/status?session_id={session_id}", status_code=303)
     resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
     return resp
