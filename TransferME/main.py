@@ -39,40 +39,50 @@ def set_progress(session_id: str, percent: int, message: str):
 
 
 def run_spotify_to_sc(session_id: str, spotify_url: str):
+    # imports inside to avoid circulars
+    from export_spotify_playlist import export_spotify_playlist, get_saved_spotify_token
+    from soundcloud import transfer_to_soundcloud, get_saved_token
+
+    set_progress(session_id, 1, "Checking tokens…")
+    sc_token = get_saved_token(session_id)
+    sp_token = get_saved_spotify_token(session_id)
+    if not sp_token:
+        set_progress(session_id, 100, "❌ Spotify auth needed. Please re-auth.")
+        return
+    if not sc_token:
+        set_progress(session_id, 100, "❌ SoundCloud auth needed. Please re-auth.")
+        return
+
+    # --- Try once ---
+    set_progress(session_id, 5, "Exporting playlist from Spotify…")
     try:
-        set_progress(session_id, 1, "Starting…")
-
-        from export_spotify_playlist import export_spotify_playlist
-        from soundcloud import transfer_to_soundcloud, get_saved_token
-
-        sc_token = get_saved_token(session_id)
-        spotify_token = get_saved_spotify_token(session_id)
-
-        if not spotify_token:
-            set_progress(session_id, 100, "❌ Spotify auth required.")
-            return
-        if not sc_token:
-            set_progress(session_id, 100, "❌ SoundCloud auth required.")
-            return
-
-        set_progress(session_id, 5, "Exporting from Spotify…")
-        result = export_spotify_playlist(spotify_url, token=spotify_token)
-        if not result:
-            set_progress(session_id, 100, "❌ Could not export playlist.")
-            return
-
-        txt_file, name = result
-        set_progress(session_id, 30, f"Found playlist: {name}")
-
-        # If transfer_to_soundcloud lets you pass a callback, use it to report fine-grained progress.
-        # Otherwise, simulate rough phases:
-        set_progress(session_id, 35, "Searching tracks on SoundCloud…")
-
-        result_msg = transfer_to_soundcloud(txt_file, token=sc_token)  # do your per-track updates inside to be fancy
-        set_progress(session_id, 100, f"✅ Done: {result_msg}")
-
+        result = export_spotify_playlist(spotify_url, token=sp_token)
     except Exception as e:
-        set_progress(session_id, 100, f"❌ Error: {e}")
+        result = None
+
+    # If it failed (common case: 401 expired), refresh once and retry
+    if not result:
+        set_progress(session_id, 6, "Spotify token may have expired — refreshing…")
+        if refresh_spotify_token(session_id):
+            sp_token = get_saved_spotify_token(session_id)
+            try:
+                result = export_spotify_playlist(spotify_url, token=sp_token)
+            except Exception:
+                result = None
+
+    if not result:
+        set_progress(session_id, 100, "❌ Couldn’t export playlist (after refresh). Re-auth Spotify.")
+        return
+
+    txt_file, name = result
+    set_progress(session_id, 20, f"Found playlist “{name}”. Searching tracks on SoundCloud…")
+
+    # optional: if transfer_to_soundcloud supports a per-track callback, you can pass one to push progress updates
+    result_msg = transfer_to_soundcloud(txt_file, token=sc_token)
+
+    # wrap up
+    set_progress(session_id, 100, result_msg or "✅ Done.")
+
 
 
 @app.get("/auth/spotify")
@@ -184,7 +194,7 @@ async def spotify_to_soundcloud(request: Request,
     return resp
 
 
-@app.get("/transfer/status", response_class=HTMLResponse)
+@app.get("/status", response_class=HTMLResponse)
 async def status_page(request: Request):
     session_id = request.query_params.get("session_id") or request.cookies.get("session_id") or "default"
     return templates.TemplateResponse("status.html", {"request": request, "session_id": session_id})
@@ -248,3 +258,29 @@ async def spotify_callback(request: Request):
     resp = RedirectResponse(f"/?session_id={session_id}")
     resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
     return resp
+
+
+def refresh_spotify_token(session_id: str):
+    path = f"tokens/{session_id}.json"
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        data = json.load(f)
+    rt = data.get("refresh_token")
+    if not rt:
+        return None
+    r = requests.post("https://accounts.spotify.com/api/token", data={
+        "grant_type": "refresh_token",
+        "refresh_token": rt,
+        "client_id": SPOTIFY_CLIENT_ID,
+        "client_secret": SPOTIFY_CLIENT_SECRET,
+    })
+    if r.status_code != 200:
+        return None
+    new_tok = r.json()
+    # keep old refresh_token if Spotify doesn’t return a new one
+    if "refresh_token" not in new_tok and "refresh_token" in data:
+        new_tok["refresh_token"] = data["refresh_token"]
+    with open(path, "w") as f:
+        json.dump(new_tok, f)
+    return new_tok.get("access_token")
