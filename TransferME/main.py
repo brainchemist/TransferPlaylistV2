@@ -159,12 +159,6 @@ from fastapi.responses import JSONResponse
 def get_progress(session_id: str):
     return JSONResponse(PROGRESS.get(session_id, {"percent": 0, "message": "Waiting…"}))
 
-
-@app.get("/status", response_class=HTMLResponse)
-def status_page(request: Request, session_id: str):
-    return templates.TemplateResponse("status.html", {"request": request})
-
-
 @app.get("/transfer", response_class=HTMLResponse)
 async def transfer_ui(request: Request):
     sid = request.query_params.get("session_id") or ensure_session_id(request)
@@ -173,42 +167,28 @@ async def transfer_ui(request: Request):
     return resp
 
 
-from helpers import ensure_session_id
-
 @app.post("/transfer/spotify-to-soundcloud")
-async def spotify_to_soundcloud(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    spotify_url: str = Form(...),
-    session_id: str = Form("")
-):
+async def spotify_to_soundcloud(request: Request,
+                                background_tasks: BackgroundTasks,
+                                spotify_url: str = Form(...),
+                                session_id: str = Form("")):
     if not session_id:
         session_id = request.cookies.get("session_id") or ensure_session_id(request)
 
-    # Quick validations before we even schedule work
-    if "open.spotify.com/playlist/" not in spotify_url:
-        return templates.TemplateResponse("result.html", {
-            "request": request,
-            "message": "❌ That doesn’t look like a Spotify playlist URL."
-        })
-
-    from soundcloud import get_saved_token
-    from export_spotify_playlist import get_saved_spotify_token
-
-    sc_token = get_saved_token(session_id)
-    spotify_token = get_saved_spotify_token(session_id)
-
-    if not spotify_token:
-        return RedirectResponse("/auth/spotify", status_code=302)
-    if not sc_token:
-        return RedirectResponse("/auth/soundcloud", status_code=302)
-
+    # kick the job to the background and bounce user to the status page
     set_progress(session_id, 0, "Queued…")
     background_tasks.add_task(run_spotify_to_sc, session_id, spotify_url)
 
-    resp = RedirectResponse(f"/status?session_id={session_id}", status_code=303)
+    resp = RedirectResponse(f"/transfer/status?session_id={session_id}", status_code=303)
     resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
     return resp
+
+
+@app.get("/transfer/status", response_class=HTMLResponse)
+async def status_page(request: Request):
+    session_id = request.query_params.get("session_id") or request.cookies.get("session_id") or "default"
+    return templates.TemplateResponse("status.html", {"request": request, "session_id": session_id})
+
 
 @app.post("/transfer/soundcloud-to-spotify")
 async def soundcloud_to_spotify(request: Request, soundcloud_url: str = Form(...), session_id: str = Form(...)):
