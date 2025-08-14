@@ -13,6 +13,8 @@ from collections import defaultdict
 from fastapi import BackgroundTasks
 import time
 
+from spotify_auth import ensure_spotify_token
+
 load_dotenv()
 app = FastAPI()
 
@@ -43,12 +45,23 @@ def run_spotify_to_sc(session_id: str, spotify_url: str):
     from export_spotify_playlist import export_spotify_playlist, get_saved_spotify_token
     from soundcloud import transfer_to_soundcloud, get_saved_token
 
-    set_progress(session_id, 1, "Checking tokens…")
+    set_progress(session_id, 5, "Refreshing Spotify token…")
+    token = ensure_spotify_token(session_id)
+    if not token:
+        set_progress(session_id, 100,
+                     "❌ Spotify auth required (token expired). Please re-auth and retry.")
+        # Optional: include a link the UI can render
+        # set_progress(session_id, 100, '❌ Spotify auth required. <a href="/auth/spotify">Re-authenticate</a>')
+        return
+
+    access_token = token["access_token"]
+
     sc_token = get_saved_token(session_id)
     sp_token = get_saved_spotify_token(session_id)
-    if not sp_token:
-        set_progress(session_id, 100, "❌ Spotify auth needed. Please re-auth.")
-        return
+
+    # if not sp_token:
+    #     set_progress(session_id, 100, "❌ Spotify auth needed. Please re-auth.")
+    #     return
     if not sc_token:
         set_progress(session_id, 100, "❌ SoundCloud auth needed. Please re-auth.")
         return
