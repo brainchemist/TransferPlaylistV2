@@ -134,3 +134,11 @@ def transfer_to_soundcloud(text_file, token):
             print(f" Deleted {file}")
 
     return f"✅ Playlist '{playlist_name}' transferred to SoundCloud.\n🔗 {playlist_url}"
+
+def _sc_auth_header(token):
+    # token may be a string or a dict saved from /oauth2/token
+    if isinstance(token, dict):
+        token = token.get("access_token") or token.get("oauth_token") or token.get("token")
+    if not token:
+        raise RuntimeError("No SoundCloud access token available.")
+    return {"Authorization": f"OAuth {token}"}

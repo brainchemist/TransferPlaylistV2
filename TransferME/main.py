@@ -13,6 +13,7 @@ from collections import defaultdict
 from fastapi import BackgroundTasks
 import time
 
+from soundcloud_auth import ensure_soundcloud_token
 from spotify_auth import ensure_spotify_token
 
 load_dotenv()
@@ -78,6 +79,11 @@ def run_spotify_to_sc(session_id: str, spotify_url: str):
     #     return
 
     sp_token = get_saved_spotify_token(session_id)
+    sc_blob = ensure_soundcloud_token(session_id)
+    if not sc_blob:
+        set_progress(session_id, 100, "❌ SoundCloud auth needed. Please re-auth.")
+        return
+    sc_token = sc_blob["access_token"]
 
     set_progress(session_id, 10, "Exporting playlist from Spotify…")
     try:
@@ -168,6 +174,7 @@ async def soundcloud_callback(request: Request):
 
     # Save the token to the session-based file
     token_data = token_response.json()
+    token_data.setdefault("created_at", int(time.time()))
     os.makedirs("tokens", exist_ok=True)
     with open(f"tokens/{session_id}_sc.json", "w") as f:
         json.dump(token_data, f)
