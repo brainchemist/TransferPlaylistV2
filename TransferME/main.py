@@ -41,41 +41,52 @@ def set_progress(session_id: str, percent: int, message: str):
 
 
 def run_spotify_to_sc(session_id: str, spotify_url: str):
-    # imports inside to avoid circulars
     from export_spotify_playlist import export_spotify_playlist, get_saved_spotify_token
     from soundcloud import transfer_to_soundcloud, get_saved_token
+    # add this import
+    from main import refresh_soundcloud_token  # or wherever you placed it
 
     set_progress(session_id, 5, "Refreshing Spotify token…")
     token = ensure_spotify_token(session_id)
     if not token:
-        set_progress(session_id, 100,
-                     "❌ Spotify auth required (token expired). Please re-auth and retry.")
-        # Optional: include a link the UI can render
-        # set_progress(session_id, 100, '❌ Spotify auth required. <a href="/auth/spotify">Re-authenticate</a>')
+        set_progress(session_id, 100, "❌ Spotify auth required (token expired). Please re-auth and retry.")
         return
 
-    access_token = token["access_token"]
-
+    # —— SoundCloud token handling ——
     sc_token = get_saved_token(session_id)
-    sp_token = get_saved_spotify_token(session_id)
-
-    # if not sp_token:
-    #     set_progress(session_id, 100, "❌ Spotify auth needed. Please re-auth.")
-    #     return
     if not sc_token:
         set_progress(session_id, 100, "❌ SoundCloud auth needed. Please re-auth.")
         return
 
-    # --- Try once ---
-    set_progress(session_id, 5, "Exporting playlist from Spotify…")
+    # If we have a refresh_token, refresh proactively
+    try:
+        with open(f"tokens/{session_id}_sc.json") as f:
+            sc_data = json.load(f)
+    except Exception:
+        sc_data = {}
+
+    if sc_data.get("refresh_token"):
+        set_progress(session_id, 6, "Refreshing SoundCloud token…")
+        new_sc = refresh_soundcloud_token(session_id)
+        if new_sc:  # replace the bearer we’ll pass down
+            sc_token = new_sc
+
+    # (optional) quick sanity check against /me; if 401, ask for re-auth
+    # resp = requests.get("https://api.soundcloud.com/me", headers={"Authorization": f"OAuth {sc_token}"})
+    # if resp.status_code == 401:
+    #     set_progress(session_id, 100, "❌ SoundCloud session expired. Please re-auth.")
+    #     return
+
+    sp_token = get_saved_spotify_token(session_id)
+
+    set_progress(session_id, 10, "Exporting playlist from Spotify…")
     try:
         result = export_spotify_playlist(spotify_url, token=sp_token)
-    except Exception as e:
+    except Exception:
         result = None
 
-    # If it failed (common case: 401 expired), refresh once and retry
     if not result:
-        set_progress(session_id, 6, "Spotify token may have expired — refreshing…")
+        set_progress(session_id, 12, "Spotify token may have expired — refreshing…")
         if refresh_spotify_token(session_id):
             sp_token = get_saved_spotify_token(session_id)
             try:
@@ -90,11 +101,9 @@ def run_spotify_to_sc(session_id: str, spotify_url: str):
     txt_file, name = result
     set_progress(session_id, 20, f"Found playlist “{name}”. Searching tracks on SoundCloud…")
 
-    # optional: if transfer_to_soundcloud supports a per-track callback, you can pass one to push progress updates
     result_msg = transfer_to_soundcloud(txt_file, token=sc_token)
-
-    # wrap up
     set_progress(session_id, 100, result_msg or "✅ Done.")
+
 
 
 
@@ -296,4 +305,41 @@ def refresh_spotify_token(session_id: str):
         new_tok["refresh_token"] = data["refresh_token"]
     with open(path, "w") as f:
         json.dump(new_tok, f)
+    return new_tok.get("access_token")
+
+def refresh_soundcloud_token(session_id: str):
+    path = f"tokens/{session_id}_sc.json"
+    if not os.path.exists(path):
+        return None
+
+    with open(path) as f:
+        data = json.load(f)
+
+    rt = data.get("refresh_token")
+    if not rt:
+        return None
+
+    r = requests.post(
+        "https://api.soundcloud.com/oauth2/token",
+        data={
+            "grant_type": "refresh_token",
+            "refresh_token": rt,
+            "client_id": SCCLIENT_ID,
+            "client_secret": SCCLIENT_SECRET,
+        },
+    )
+
+    if r.status_code != 200:
+        print(f"⚠️ Failed to refresh SoundCloud token: {r.status_code} {r.text}")
+        return None
+
+    new_tok = r.json()
+
+    # Keep the old refresh_token if SoundCloud doesn't send a new one
+    if "refresh_token" not in new_tok and "refresh_token" in data:
+        new_tok["refresh_token"] = data["refresh_token"]
+
+    with open(path, "w") as f:
+        json.dump(new_tok, f)
+
     return new_tok.get("access_token")
