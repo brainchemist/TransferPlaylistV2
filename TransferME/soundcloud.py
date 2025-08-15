@@ -63,6 +63,8 @@ def upload_cover_and_description(headers, pid, image_path, description):
         print(f"❌ Failed to update image/description: {r.status_code} - {r.text}")
 
 def transfer_to_soundcloud(text_file, token):
+    if not text_file:
+        return "❌ No exported file to transfer (export failed)."
     headers = {
         'Authorization': f'OAuth {token}',
         'User-Agent': 'Mozilla/5.0'

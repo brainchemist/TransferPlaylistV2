@@ -91,18 +91,15 @@ def run_spotify_to_sc(session_id: str, spotify_url: str):
     except Exception:
         result = None
 
-    if not result:
-        set_progress(session_id, 12, "Spotify token may have expired — refreshing…")
+    if (not result) or (not result[0]):
+        set_progress(session_id, 6, "Spotify token may have expired — refreshing…")
         if refresh_spotify_token(session_id):
             sp_token = get_saved_spotify_token(session_id)
-            try:
-                result = export_spotify_playlist(spotify_url, token=sp_token)
-            except Exception:
-                result = None
-
-    if not result:
-        set_progress(session_id, 100, "❌ Couldn’t export playlist (after refresh). Re-auth Spotify.")
-        return
+            result = export_spotify_playlist(spotify_url, token=sp_token)
+        # after retry, check again:
+        if (not result) or (not result[0]):
+            set_progress(session_id, 100, "❌ Couldn’t export playlist (401/403). Re-auth Spotify or check app access.")
+            return
 
     txt_file, name = result
     set_progress(session_id, 20, f"Found playlist “{name}”. Searching tracks on SoundCloud…")
