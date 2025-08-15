@@ -301,3 +301,16 @@ async def soundcloud_to_spotify(
     txt_file, name = export_soundcloud_playlist(soundcloud_url, sc_token)
     result = transfer_to_spotify(txt_file, session_id)
     return templates.TemplateResponse("result.html", {"request": request, "message": result})
+
+@app.get("/result", response_class=HTMLResponse)
+async def result_page(request: Request):
+    session_id = (
+        request.query_params.get("session_id")
+        or request.cookies.get("session_id")
+        or "default"
+    )
+    data = PROGRESS.get(session_id, {"percent": 0, "message": "Waiting…"})
+    return templates.TemplateResponse(
+        "result.html",
+        {"request": request, "message": data.get("message", "Done.")}
+    )
