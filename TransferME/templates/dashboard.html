@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard - Transfer Playlist</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    .dashboard-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    
+    .auth-status {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    
+    .auth-card {
+      flex: 1;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      text-align: center;
+      font-weight: 600;
+    }
+    
+    .auth-connected {
+      background-color: #d1fae5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    
+    .auth-disconnected {
+      background-color: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+    
+    .transfer-history {
+      background: white;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .transfer-item {
+      padding: 1rem;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .transfer-item:last-child {
+      border-bottom: none;
+    }
+    
+    .transfer-info {
+      flex: 1;
+    }
+    
+    .transfer-route {
+      font-weight: 600;
+      color: #374151;
+    }
+    
+    .transfer-stats {
+      font-size: 0.875rem;
+      color: #6b7280;
+      margin-top: 0.25rem;
+    }
+    
+    .transfer-status {
+      padding: 0.25rem 0.75rem;
+      border-radius: 1rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    
+    .status-success {
+      background-color: #d1fae5;
+      color: #065f46;
+    }
+    
+    .status-partial {
+      background-color: #fef3c7;
+      color: #92400e;
+    }
+    
+    .status-failed {
+      background-color: #fef2f2;
+      color: #991b1b;
+    }
+    
+    .empty-state {
+      text-align: center;
+      color: #6b7280;
+      padding: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard-container">
+    <h1 class="page-title">Dashboard</h1>
+    
+    <!-- Authentication Status -->
+    <div class="auth-status">
+      <div class="auth-card {{ 'auth-connected' if spotify_authenticated else 'auth-disconnected' }}">
+        <div>🎵 Spotify</div>
+        <div>{{ 'Connected' if spotify_authenticated else 'Not Connected' }}</div>
+        {% if not spotify_authenticated %}
+          <div style="margin-top: 0.5rem;">
+            <a href="/auth/spotify" style="color: #3b82f6; text-decoration: none;">Connect →</a>
+          </div>
+        {% endif %}
+      </div>
+      
+      <div class="auth-card {{ 'auth-connected' if soundcloud_authenticated else 'auth-disconnected' }}">
+        <div>🔊 SoundCloud</div>
+        <div>{{ 'Connected' if soundcloud_authenticated else 'Not Connected' }}</div>
+        {% if not soundcloud_authenticated %}
+          <div style="margin-top: 0.5rem;">
+            <a href="/auth/soundcloud" style="color: #3b82f6; text-decoration: none;">Connect →</a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div style="text-align: center; margin-bottom: 2rem;">
+      <a href="/transfer" style="background: #6366f1; color: white; padding: 0.75rem 1.5rem; border-radius: 0.5rem; text-decoration: none; font-weight: 600;">
+        New Transfer
+      </a>
+    </div>
+    
+    <!-- Transfer History -->
+    <div class="transfer-history">
+      <h2 style="margin-bottom: 1rem; color: #374151;">Recent Transfers</h2>
+      
+      {% if transfers %}
+        {% for transfer in transfers %}
+          <div class="transfer-item">
+            <div class="transfer-info">
+              <div class="transfer-route">
+                {{ transfer.source_platform|title }} → {{ transfer.destination_platform|title }}
+              </div>
+              <div class="transfer-stats">
+                {{ transfer.tracks_found }}/{{ transfer.tracks_total }} tracks • 
+                {{ transfer.started_at.strftime('%Y-%m-%d %H:%M') }}
+              </div>
+              {% if transfer.destination_playlist_url %}
+                <div style="margin-top: 0.25rem;">
+                  <a href="{{ transfer.destination_playlist_url }}" target="_blank" style="color: #3b82f6; text-decoration: none; font-size: 0.875rem;">
+                    View Playlist →
+                  </a>
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="transfer-status status-{{ transfer.transfer_status }}">
+              {% if transfer.transfer_status == 'success' %}
+                ✅ Success
+              {% elif transfer.transfer_status == 'partial' %}
+                ⚠️ Partial
+              {% else %}
+                ❌ Failed
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <div style="font-size: 3rem; margin-bottom: 1rem;">🎵</div>
+          <div>No transfers yet</div>
+          <div style="font-size: 0.875rem; margin-top: 0.5rem;">
+            Your transfer history will appear here
+          </div>
+        </div>
+      {% endif %}
+    </div>
+    
+    <!-- Footer -->
+    <div style="text-align: center; margin-top: 2rem; font-size: 0.875rem; color: #6b7280;">
+      <a href="/" style="color: #6b7280; text-decoration: none;">← Back to Home</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -8,3 +8,8 @@ spotipy
 Pillow
 python-dotenv
 gunicorn
+sqlalchemy 
+alembic 
+psycopg2-binary
+aiohttp 
+asyncio
