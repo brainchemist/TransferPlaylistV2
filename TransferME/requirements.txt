@@ -12,4 +12,13 @@ sqlalchemy
 alembic 
 psycopg2-binary
 aiohttp 
+asynciosqlalchemy
+alembic
+aiohttp
 asyncio
+psycopg2-binary
+sqlalchemy
+alembic
+aiohttp
+asyncio
+psycopg2-binary

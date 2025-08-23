@@ -354,10 +354,7 @@ async def spotify_to_soundcloud(
     set_progress(session_id, 0, "Transfer queued…")
     
     # Run async transfer in background
-    background_tasks.add_task(
-        lambda: asyncio.create_task(run_spotify_to_soundcloud_async(session_id, spotify_url))
-    )
-
+    background_tasks.add_task(run_spotify_to_soundcloud_async, session_id, spotify_url)
     resp = RedirectResponse(f"/status?session_id={session_id}", status_code=303)
     resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
     return resp
@@ -423,3 +420,25 @@ async def soundcloud_to_spotify(
         "request": request, 
         "message": "🚧 SoundCloud to Spotify transfer is being updated. Please try again later."
     })
+# Simple test transfer function
+async def run_spotify_to_sc(session_id: str, spotify_url: str):
+    """Simple transfer function for testing"""
+    import asyncio
+    
+    try:
+        set_progress(session_id, 10, "Starting transfer...")
+        await asyncio.sleep(2)
+        
+        set_progress(session_id, 30, "Connecting to Spotify...")
+        await asyncio.sleep(2)
+        
+        set_progress(session_id, 50, "Fetching playlist...")
+        await asyncio.sleep(2)
+        
+        set_progress(session_id, 80, "Searching on SoundCloud...")
+        await asyncio.sleep(2)
+        
+        set_progress(session_id, 100, "✅ Transfer completed successfully!")
+        
+    except Exception as e:
+        set_progress(session_id, 100, f"❌ Transfer failed: {str(e)}")

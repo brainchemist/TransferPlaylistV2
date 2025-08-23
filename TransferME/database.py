@@ -1,4 +1,5 @@
-from sqlalchemy import create_engine, Column, String, DateTime, Integer, Text
+# database.py
+from sqlalchemy import create_engine, Column, String, DateTime, Integer, Text, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -28,17 +29,30 @@ class TransferHistory(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(String)
-    source_platform = Column(String)
+    source_platform = Column(String)  # 'spotify' or 'soundcloud'
     destination_platform = Column(String)
     source_playlist_url = Column(String)
     destination_playlist_url = Column(String)
     tracks_total = Column(Integer)
     tracks_found = Column(Integer)
-    transfer_status = Column(String)
+    transfer_status = Column(String)  # 'success', 'partial', 'failed'
     error_message = Column(Text)
     started_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime)
 
+class SearchCache(Base):
+    __tablename__ = "search_cache"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    query = Column(String, index=True)
+    platform = Column(String)  # 'spotify' or 'soundcloud'
+    result_track_id = Column(String)
+    result_title = Column(String)
+    result_artist = Column(String)
+    match_score = Column(String)  # Store as string to avoid float precision issues
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# Create tables
 Base.metadata.create_all(bind=engine)
 
 def get_db():
@@ -46,4 +60,4 @@ def get_db():
     try:
         yield db
     finally:
-        db.close()
+        db.close().
