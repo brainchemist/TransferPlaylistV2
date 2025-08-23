@@ -2,11 +2,14 @@
 import asyncio
 import aiohttp
 import time
+import os
 from typing import List, Dict, Optional, Tuple, Callable
 from database import get_db, SearchCache, TransferHistory
 from token_manager import token_manager
 import re
 import json
+
+SOUNDCLOUD_CLIENT_ID = os.getenv("SCCLIENT_ID")
 
 class AsyncTrackSearcher:
     def __init__(self):
@@ -24,249 +27,161 @@ class AsyncTrackSearcher:
         if self.session:
             await self.session.close()
 
-    def _normalize_string(self, s: str) -> str:
-        """Normalize string for matching"""
-        s = s.lower()
-        s = re.sub(r"[^\w\s]", " ", s)
-        s = re.sub(r"\s+", " ", s).strip()
-        s = re.sub(r"\b(slowed|reverb|remix|edit|radio|version|feat|ft)\b", "", s)
-        return s
-
-    def _calculate_match_score(self, target: str, candidate: str) -> float:
-        """Calculate similarity score between two strings"""
-        target_norm = self._normalize_string(target)
-        candidate_norm = self._normalize_string(candidate)
-        
-        target_words = set(target_norm.split())
-        candidate_words = set(candidate_norm.split())
-        
-        if not target_words or not candidate_words:
-            return 0.0
-        
-        intersection = target_words & candidate_words
-        union = target_words | candidate_words
-        
-        return len(intersection) / len(union)
-
-    def _check_rate_limit(self, platform: str) -> bool:
-        """Check if we're within rate limits"""
-        now = time.time()
+    def _wait_for_rate_limit(self, platform: str):
+        """Wait if rate limit exceeded"""
         rate_info = self.rate_limits[platform]
+        current_time = time.time()
         
-        if now > rate_info['reset_time']:
+        if current_time < rate_info['reset_time']:
+            if rate_info['requests'] >= rate_info['limit']:
+                wait_time = rate_info['reset_time'] - current_time
+                time.sleep(wait_time)
+                rate_info['requests'] = 0
+                rate_info['reset_time'] = current_time + 3600
+        elif current_time >= rate_info['reset_time']:
             rate_info['requests'] = 0
-            rate_info['reset_time'] = now + 60  # Reset every minute
-        
-        if rate_info['requests'] >= rate_info['limit']:
-            return False
-        
-        rate_info['requests'] += 1
-        return True
+            rate_info['reset_time'] = current_time + 3600
 
-    async def _search_cache(self, query: str, platform: str) -> Optional[Dict]:
-        """Check cache for previous search results"""
-        db = next(get_db())
+    async def _search_soundcloud_track(self, session_id: str, track_name: str, artist_name: str) -> Optional[Dict]:
+        """Search for a track on SoundCloud with OAuth authentication"""
         try:
-            cached = db.query(SearchCache).filter(
-                SearchCache.query == query,
-                SearchCache.platform == platform
-            ).first()
+            # Get the SoundCloud access token for this session
+            soundcloud_token = token_manager.get_soundcloud_token(session_id)
+            if not soundcloud_token:
+                print(f"SoundCloud search error: No SoundCloud token for session {session_id}")
+                return None
+
+            self._wait_for_rate_limit('soundcloud')
             
-            if cached:
-                return {
-                    'id': cached.result_track_id,
-                    'title': cached.result_title,
-                    'artist': cached.result_artist,
-                    'match_score': float(cached.match_score)
-                }
-        finally:
-            db.close()
-        return None
-
-    async def _cache_result(self, query: str, platform: str, result: Dict) -> None:
-        """Cache search result"""
-        db = next(get_db())
-        try:
-            cache_entry = SearchCache(
-                query=query,
-                platform=platform,
-                result_track_id=result.get('id', ''),
-                result_title=result.get('title', ''),
-                result_artist=result.get('artist', ''),
-                match_score=str(result.get('match_score', 0.0))
-            )
-            db.add(cache_entry)
-            db.commit()
-        finally:
-            db.close()
-
-    async def search_spotify_track(self, session_id: str, title: str, artist: str) -> Optional[Dict]:
-        """Search for track on Spotify with caching and rate limiting"""
-        query = f"{title} {artist}".strip()
-        
-        # Check cache first
-        cached = await self._search_cache(query, 'spotify')
-        if cached:
-            return cached
-        
-        # Check rate limit
-        if not self._check_rate_limit('spotify'):
-            await asyncio.sleep(60)  # Wait for rate limit reset
-        
-        token = token_manager.get_spotify_token(session_id)
-        if not token:
-            return None
-        
-        try:
-            headers = {'Authorization': f'Bearer {token}'}
-            params = {'q': query, 'type': 'track', 'limit': 10}
+            query = f"{track_name} {artist_name}".strip()
             
-            async with self.session.get(
-                'https://api.spotify.com/v1/search',
-                headers=headers,
-                params=params
-            ) as response:
-                if response.status != 200:
-                    return None
-                
-                data = await response.json()
-                tracks = data.get('tracks', {}).get('items', [])
-                
-                if not tracks:
-                    return None
-                
-                # Find best match
-                best_match = None
-                best_score = 0.0
-                
-                for track in tracks:
-                    track_title = track['name']
-                    track_artist = track['artists'][0]['name'] if track['artists'] else ''
-                    candidate = f"{track_title} {track_artist}"
-                    
-                    score = self._calculate_match_score(query, candidate)
-                    if score > best_score:
-                        best_score = score
-                        best_match = {
-                            'id': track['id'],
-                            'title': track_title,
-                            'artist': track_artist,
-                            'match_score': score
-                        }
-                
-                if best_match and best_score >= 0.5:
-                    await self._cache_result(query, 'spotify', best_match)
-                    return best_match
-                
-        except Exception as e:
-            print(f"Spotify search error: {e}")
-        
-        return None
-
-    async def search_soundcloud_track(self, session_id: str, title: str, artist: str) -> Optional[Dict]:
-        """Search for track on SoundCloud with caching and rate limiting"""
-        query = f"{title} {artist}".strip()
-        
-        # Check cache first
-        cached = await self._search_cache(query, 'soundcloud')
-        if cached:
-            return cached
-        
-        # Check rate limit
-        if not self._check_rate_limit('soundcloud'):
-            await asyncio.sleep(60)
-        
-        token = token_manager.get_soundcloud_token(session_id)
-        if not token:
-            return None
-        
-        try:
-            headers = {'Authorization': f'OAuth {token}'}
-            params = {'q': query, 'limit': 10}
+            # Prepare headers with OAuth token
+            headers = {
+                'Authorization': f'OAuth {soundcloud_token}',
+                'Accept': 'application/json; charset=utf-8'
+            }
             
-            # Try v2 API first
+            # Prepare search parameters
+            params = {
+                'q': query,
+                'limit': 10,
+                'offset': 0
+            }
+
+            # Try v2 API first (with OAuth token in header)
             async with self.session.get(
                 'https://api-v2.soundcloud.com/search/tracks',
                 headers=headers,
                 params=params
             ) as response:
-                if response.status != 200:
-                    # Fallback to v1 API
-                    params['client_id'] = token_manager.SOUNDCLOUD_CLIENT_ID
+                if response.status == 200:
+                    data = await response.json()
+                    tracks = data.get('collection', [])
+                else:
+                    # Fallback to v1 API (also with OAuth token)
                     async with self.session.get(
                         'https://api.soundcloud.com/tracks',
                         headers=headers,
                         params=params
                     ) as fallback_response:
                         if fallback_response.status != 200:
+                            error_text = await fallback_response.text()
+                            print(f"SoundCloud API error: {fallback_response.status} - {error_text}")
                             return None
                         data = await fallback_response.json()
-                else:
-                    data = await response.json()
+                        tracks = data if isinstance(data, list) else data.get('collection', [])
                 
-                tracks = data.get('collection', data) if isinstance(data, dict) else data
                 if not tracks:
                     return None
-                
-                # Find best match
+
+                # Find best match using fuzzy matching
                 best_match = None
                 best_score = 0.0
                 
                 for track in tracks:
-                    track_title = track.get('title', '')
-                    track_user = track.get('user', {}).get('username', '') if track.get('user') else ''
-                    candidate = f"{track_title} {track_user}"
+                    track_title = track.get('title', '').lower()
+                    track_user = track.get('user', {}).get('username', '').lower() if track.get('user') else ''
                     
-                    score = self._calculate_match_score(query, candidate)
-                    if score > best_score:
-                        best_score = score
+                    # Simple fuzzy matching score
+                    title_score = self._fuzzy_match(track_name.lower(), track_title)
+                    artist_score = self._fuzzy_match(artist_name.lower(), track_user)
+                    
+                    combined_score = (title_score * 0.7) + (artist_score * 0.3)
+                    
+                    if combined_score > best_score and combined_score > 0.5:  # Minimum threshold
+                        best_score = combined_score
                         best_match = {
-                            'id': str(track.get('id', '')),
-                            'title': track_title,
+                            'id': track.get('id'),
+                            'title': track.get('title'),
                             'artist': track_user,
-                            'match_score': score
+                            'url': track.get('permalink_url'),
+                            'match_score': combined_score
                         }
                 
-                if best_match and best_score >= 0.5:
-                    await self._cache_result(query, 'soundcloud', best_match)
-                    return best_match
-                
+                # Update rate limit info
+                self.rate_limits['soundcloud']['requests'] += 1
+                return best_match
+
         except Exception as e:
-            print(f"SoundCloud search error: {e}")
+            print(f"SoundCloud search error: {str(e)}")
+            return None
+
+    def _fuzzy_match(self, query: str, target: str) -> float:
+        """Simple fuzzy string matching"""
+        if not query or not target:
+            return 0.0
         
-        return None
+        # Remove special characters and normalize
+        import re
+        query_clean = re.sub(r'[^\w\s]', '', query).lower().strip()
+        target_clean = re.sub(r'[^\w\s]', '', target).lower().strip()
+        
+        if query_clean == target_clean:
+            return 1.0
+        
+        if query_clean in target_clean or target_clean in query_clean:
+            return 0.8
+        
+        # Word-based matching
+        query_words = set(query_clean.split())
+        target_words = set(target_clean.split())
+        
+        if not query_words or not target_words:
+            return 0.0
+        
+        intersection = query_words.intersection(target_words)
+        union = query_words.union(target_words)
+        
+        return len(intersection) / len(union) if union else 0.0
 
     async def batch_search_tracks(
-        self, 
-        session_id: str, 
-        track_list: List[Tuple[str, str]], 
-        platform: str,
+        self,
+        session_id: str,
+        track_list: List[Tuple[str, str]],
+        destination_platform: str,
         progress_callback: Optional[Callable] = None
     ) -> List[Optional[Dict]]:
-        """Search multiple tracks in parallel with progress tracking"""
+        """Search for multiple tracks asynchronously"""
         
-        semaphore = asyncio.Semaphore(5)  # Limit concurrent requests
+        results = []
+        total_tracks = len(track_list)
         
-        async def search_with_semaphore(index: int, title: str, artist: str):
-            async with semaphore:
-                if platform == 'spotify':
-                    result = await self.search_spotify_track(session_id, title, artist)
-                else:
-                    result = await self.search_soundcloud_track(session_id, title, artist)
-                
-                if progress_callback:
-                    progress_callback(index + 1, len(track_list), f"Searched: {title} - {artist}")
-                
-                return result
+        for i, (track_name, artist_name) in enumerate(track_list):
+            if destination_platform.lower() == 'soundcloud':
+                result = await self._search_soundcloud_track(session_id, track_name, artist_name)
+            else:
+                result = None  # Add other platforms as needed
+            
+            results.append(result)
+            
+            if progress_callback:
+                progress_callback(i + 1, total_tracks, f"Searched: {track_name} - {artist_name}")
+            
+            # Small delay to be respectful to APIs
+            await asyncio.sleep(0.1)
         
-        tasks = [
-            search_with_semaphore(i, title, artist) 
-            for i, (title, artist) in enumerate(track_list)
-        ]
-        
-        return await asyncio.gather(*tasks, return_exceptions=True)
+        return results
 
-# Usage example function
 async def transfer_playlist_async(
     session_id: str,
     track_list: List[Tuple[str, str]],

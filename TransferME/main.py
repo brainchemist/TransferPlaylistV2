@@ -159,45 +159,100 @@ async def run_spotify_to_soundcloud_async(session_id: str, spotify_url: str):
             headers = {"Authorization": f"OAuth {soundcloud_token}"}
             track_ids = [int(track['id']) for track in found_tracks if track.get('id')]
             
-            payload = {
-                "playlist": {
-                    "title": f"{playlist_name} (from Spotify)",
-                    "sharing": "private",
-                    "tracks": [{"id": tid} for tid in track_ids]
-                }
+            # Step 4a: Create empty playlist first
+            playlist_payload = {
+                "title": f"{playlist_name} (from Spotify)",
+                "sharing": "private"
             }
             
             async with AsyncTrackSearcher() as searcher:
+                # Create the playlist
                 async with searcher.session.post(
                     "https://api.soundcloud.com/playlists",
-                    json=payload,
+                    json=playlist_payload,
                     headers=headers
                 ) as response:
                     if response.status in (200, 201):
                         playlist_result = await response.json()
+                        playlist_id = playlist_result.get('id')
                         playlist_url = playlist_result.get('permalink_url', 'Created successfully')
                         
-                        # Record success in database
-                        db = next(get_db())
-                        record_transfer_history(
-                            session_id=session_id,
-                            source_platform='spotify',
-                            destination_platform='soundcloud',
-                            source_url=spotify_url,
-                            destination_url=playlist_url,
-                            tracks_total=len(track_list),
-                            tracks_found=tracks_found,
-                            status='success',
-                            db=db
-                        )
-                        db.close()
-                        
-                        set_progress(session_id, 100, 
-                            f"✅ Successfully transferred {tracks_found}/{len(track_list)} tracks! "
-                            f"Playlist: {playlist_url}")
+                        # Step 4b: Add tracks to the playlist if we have any
+                        if track_ids and playlist_id:
+                            set_progress(session_id, 90, "Adding tracks to playlist…")
+                            
+                            # Try adding tracks to the playlist
+                tracks_payload = {
+                                "playlist": {
+                     "tracks": [{"id": tid} for tid in track_ids]
+                     }
+                }                                
+                            async with searcher.session.put(
+                                f"https://api.soundcloud.com/playlists/{playlist_id}",
+                                json=tracks_payload,
+                                headers=headers
+                            ) as tracks_response:
+                                if tracks_response.status in (200, 201):
+                                    # Record success in database
+                                    db = next(get_db())
+                                    record_transfer_history(
+                                        session_id=session_id,
+                                        source_platform='spotify',
+                                        destination_platform='soundcloud',
+                                        source_url=spotify_url,
+                                        destination_url=playlist_url,
+                                        tracks_total=len(track_list),
+                                        tracks_found=tracks_found,
+                                        status='completed',
+                                        db=db
+                                    )
+                                    db.close()
+                                    
+                                    set_progress(session_id, 100, f"✅ Transfer completed: {playlist_url}")
+                                else:
+                                    # Playlist created but tracks couldn't be added
+                                    error_text = await tracks_response.text()
+                                    print(f"Failed to add tracks to playlist: {tracks_response.status} - {error_text}")
+                                    
+                                    # Record partial success
+                                    db = next(get_db())
+                                    record_transfer_history(
+                                        session_id=session_id,
+                                        source_platform='spotify',
+                                        destination_platform='soundcloud',
+                                        source_url=spotify_url,
+                                        destination_url=playlist_url,
+                                        tracks_total=len(track_list),
+                                        tracks_found=0,  # No tracks actually added
+                                        status='partial',
+                                        error_message=f"Playlist created but tracks not added: HTTP {tracks_response.status}",
+                                        db=db
+                                    )
+                                    db.close()
+                                    
+                                    set_progress(session_id, 100, f"⚠️ Playlist created but tracks couldn't be added: {playlist_url}")
+                        else:
+                            # No tracks to add, but playlist was created
+                            db = next(get_db())
+                            record_transfer_history(
+                                session_id=session_id,
+                                source_platform='spotify',
+                                destination_platform='soundcloud',
+                                source_url=spotify_url,
+                                destination_url=playlist_url,
+                                tracks_total=len(track_list),
+                                tracks_found=0,
+                                status='completed',
+                                error_message="No matching tracks found",
+                                db=db
+                            )
+                            db.close()
+                            
+                            set_progress(session_id, 100, f"✅ Empty playlist created: {playlist_url}")
                     else:
-                        raise Exception(f"HTTP {response.status}")
-        
+                        error_text = await response.text()
+                        raise Exception(f"HTTP {response.status} - {error_text}")
+                        
         except Exception as e:
             # Record failure in database
             db = next(get_db())
@@ -218,7 +273,6 @@ async def run_spotify_to_soundcloud_async(session_id: str, spotify_url: str):
     
     except Exception as e:
         set_progress(session_id, 100, f"❌ Transfer failed: {str(e)}")
-
 # === ROUTES ===
 
 @app.get("/auth/spotify")
