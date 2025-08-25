@@ -337,7 +337,7 @@ async def spotify_callback(request: Request):
         if spotify_url:
             redirect_url = f"/transfer?spotify_url={spotify_url}"
         else:
-            redirect_url = return_url or "/"
+            redirect_url = return_url or "/transfer"
 
         resp = RedirectResponse(redirect_url)
         resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
