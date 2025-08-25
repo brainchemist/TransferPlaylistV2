@@ -312,13 +312,15 @@ def auth_spotify(request: Request):
 async def spotify_callback(request: Request):
     code = request.query_params.get("code")
     session_id = request.query_params.get("state")
+    return_url = request.query_params.get("return_url", "/")
+    spotify_url = request.query_params.get("spotify_url", "")
 
     if not code:
         return templates.TemplateResponse("result.html", {
             "request": request, "message": "❌ No authorization code found."
         })
 
-    # Exchange code for token
+    # Exchange code for token (your existing logic)
     token_response = requests.post("https://accounts.spotify.com/api/token", data={
         "grant_type": "authorization_code",
         "code": code,
@@ -331,7 +333,13 @@ async def spotify_callback(request: Request):
         token_data = token_response.json()
         token_manager.save_spotify_token(session_id, token_data)
 
-        resp = RedirectResponse(f"/?session_id={session_id}")
+        # Redirect back to transfer with the original URL
+        if spotify_url:
+            redirect_url = f"/transfer?spotify_url={spotify_url}"
+        else:
+            redirect_url = return_url or "/"
+
+        resp = RedirectResponse(redirect_url)
         resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
         return resp
     else:
@@ -431,6 +439,22 @@ async def spotify_to_soundcloud(
             "message": "❌ Please provide a valid Spotify playlist URL"
         })
 
+    # Check tokens first
+    spotify_token = token_manager.get_spotify_token(session_id)
+    soundcloud_token = token_manager.get_soundcloud_token(session_id)
+
+    if not spotify_token:
+        # Store the transfer request and redirect to auth
+        resp = RedirectResponse(f"/auth/spotify?return_url=/transfer&spotify_url={spotify_url}", status_code=303)
+        resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
+        return resp
+
+    if not soundcloud_token:
+        resp = RedirectResponse(f"/auth/soundcloud?return_url=/transfer&spotify_url={spotify_url}", status_code=303)
+        resp.set_cookie("session_id", session_id, httponly=True, samesite="lax")
+        return resp
+
+    # Both tokens exist, proceed with transfer
     set_progress(session_id, 0, "Transfer queued…")
 
     # Run async transfer in background
